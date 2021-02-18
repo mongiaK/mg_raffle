@@ -14,9 +14,13 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/alidns"
+	"github.com/robfig/cron/v3"
 )
 
 var (
@@ -69,9 +73,7 @@ func GetExternalIP() (string, error) {
 	return strings.TrimSpace(res), nil
 }
 
-func main() {
-	flag.Parse()
-
+func aliyunDDNSClient() {
 	externalIP, err := GetExternalIP()
 	if nil != err {
 		fmt.Print(err.Error())
@@ -119,4 +121,30 @@ func main() {
 			fmt.Printf("update record response: %+v", res)
 		}
 	}
+}
+
+func main() {
+	flag.Parse()
+
+	c := cron.New()
+
+	c.AddFunc("@every 10s", aliyunDDNSClient)
+
+	c.Start()
+
+	sigs := make(chan os.Signal, 1)
+	done := make(chan bool, 1)
+
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		sig := <-sigs
+		fmt.Println()
+		fmt.Println(sig)
+		done <- true
+	}()
+
+	fmt.Println("awaiting signal")
+	<-done
+	fmt.Println("exiting")
 }
