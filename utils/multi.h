@@ -104,6 +104,23 @@ void set_multi_env()
 	}
 }
 
+void watch_process(std::map<int, bool>& pool)
+{
+    while(pool.size() > 0) {
+        for(auto item = pool.begin(); item != pool.end();) {
+            int ret = waitpid(item->first, NULL, 0); // 等待子进程执行完
+            if (ret == item->first) {
+                pool.erase(item++);
+            } else {
+                item++;
+            }
+        }
+
+        std::cout << "main  process [" << getpid() << "] loop, wait child exit, alive: " << pool.size() << std::endl;
+        sleep(1);
+    }
+}
+
 void multi_create(int procnum, int threadnum)
 {
 	set_multi_env();
@@ -120,20 +137,7 @@ void multi_create(int procnum, int threadnum)
 
 	if(pid == 0){
 		thread_create(threadnum);
-        return;
-    }
-
-    while(pool.size() > 0) {
-        for(auto item = pool.begin(); item != pool.end();) {
-            int ret = waitpid(item->first, NULL, 0); // 等待子进程执行完
-            if (ret == item->first) {
-                pool.erase(item++);
-            } else {
-                item++;
-            }
-        }
-
-        std::cout << "main  process [" << getpid() << "] loop, wait child exit, alive: " << pool.size() << std::endl;
-        sleep(1);
+    }else{
+        watch_process(pool);
     }
 }

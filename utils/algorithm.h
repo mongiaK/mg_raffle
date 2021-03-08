@@ -103,10 +103,6 @@ class Sequence {
     }
 };
 
-class LRUCache {
-    
-};
-
 template <typename T>
 class Solution {
     private:
