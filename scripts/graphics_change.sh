@@ -10,11 +10,17 @@
 
 arg=$1
 
+function query_graphic_info
+{
+    lspci -k | grep -A 2 -E "(VGA|3D)"
+}
+
 case $arg in
     'on') 
         tee /proc/acpi/bbswitch <<< "ON"
         ;;
     'off')
+        rmmod nvidia
         tee /proc/acpi/bbswitch <<< "OFF"
         ;;
     *)
