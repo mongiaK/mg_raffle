@@ -26,6 +26,18 @@ static int success = 0;
 static int failed = 0;
 static TaskFunc gfunc = NULL;
 
+enum STATUS {
+    SUCCESS = 0,
+    FAILED = 1,
+};
+
+struct thread_stat {
+    int pid;
+    int tid;
+    int tm_cost;
+    int status; 
+};
+
 void register_func(TaskFunc func)
 {
     gfunc = func;

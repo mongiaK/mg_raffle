@@ -1,2 +1,4 @@
 ddns.sh
 ddns_client/ddns_client
+websocket/websocket
+websocket/client/client
