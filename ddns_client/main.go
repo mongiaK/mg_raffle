@@ -15,6 +15,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"strings"
 	"syscall"
@@ -24,30 +25,29 @@ import (
 )
 
 var (
-	RegionID               = flag.String("regionid", "cn-hangzhou", "aliyun regionid")
-	AccessKeyID            = flag.String("accesskeyid", "", "aliyun access key id")
-	AccessKeySecret        = flag.String("accesskeysecret", "", "aliyun access key secret")
-	DomainName             = flag.String("domain", "", "domain name")
-	AliyunScheme    string = "https"
+	regionID        = flag.String("regionid", "cn-hangzhou", "aliyun regionid")
+	accessKeyID     = flag.String("accesskeyid", "", "aliyun access key id")
+	accessKeySecret = flag.String("accesskeysecret", "", "aliyun access key secret")
+	domainName      = flag.String("domain", "", "domain name")
+	isDaemon        = flag.Bool("daemon", false, "daemon true or not")
+
+	aliyunScheme string = "https"
+	preIP        string = ""
 )
 
 func GetInternalIP() (string, error) {
-	// 思路来自于Python版本的内网IP获取，其他版本不准确
 	conn, err := net.Dial("udp", "8.8.8.8:80")
 	if err != nil {
 		return "", errors.New("internal IP fetch failed, detail:" + err.Error())
 	}
 	defer conn.Close()
 
-	// udp 面向无连接，所以这些东西只在你本地捣鼓
 	res := conn.LocalAddr().String()
 	res = strings.Split(res, ":")[0]
 	return res, nil
 }
 
 func GetExternalIP() (string, error) {
-	// 有很多类似网站提供这种服务，这是我知道且正在用的
-	// 备用：https://myexternalip.com/raw （cip.cc 应该是够快了，我连手机热点的时候不太稳，其他自己查）
 	response, err := http.Get("http://ip.cip.cc")
 	if err != nil {
 		return "", errors.New("external IP fetch failed, detail:" + err.Error())
@@ -56,7 +56,6 @@ func GetExternalIP() (string, error) {
 	defer response.Body.Close()
 	res := ""
 
-	// 类似的API应当返回一个纯净的IP地址
 	for {
 		tmp := make([]byte, 32)
 		n, err := response.Body.Read(tmp)
@@ -80,17 +79,22 @@ func aliyunDDNSClient() {
 		return
 	}
 
+	if preIP == externalIP {
+		fmt.Println("ip not change")
+		return
+	}
+
 	fmt.Printf("external ip [%s]", externalIP)
 
-	client, err := alidns.NewClientWithAccessKey(*RegionID, *AccessKeyID, *AccessKeySecret)
+	client, err := alidns.NewClientWithAccessKey(*regionID, *accessKeyID, *accessKeySecret)
 	if nil != err {
 		fmt.Print(err.Error())
 		return
 	}
 
 	request := alidns.CreateDescribeDomainRecordsRequest()
-	request.Scheme = AliyunScheme
-	request.DomainName = *DomainName
+	request.Scheme = aliyunScheme
+	request.DomainName = *domainName
 
 	domainRecords, err := client.DescribeDomainRecords(request)
 	if nil != err {
@@ -107,7 +111,7 @@ func aliyunDDNSClient() {
 
 			fmt.Printf("update record %+v", record)
 			subReq := alidns.CreateUpdateDomainRecordRequest()
-			subReq.Scheme = AliyunScheme
+			subReq.Scheme = aliyunScheme
 			subReq.RR = record.RR
 			subReq.RecordId = record.RecordId
 			subReq.Type = record.Type
@@ -118,13 +122,30 @@ func aliyunDDNSClient() {
 				fmt.Print(err.Error())
 				continue
 			}
+
+			preIP = externalIP
 			fmt.Printf("update record response: %+v", res)
 		}
+	}
+
+}
+
+func daemon() {
+	if *isDaemon {
+		cmd := exec.Command(os.Args[0], flag.Args()...)
+		if err := cmd.Start(); err != nil {
+			fmt.Printf("start %s failed, error: %v\n", os.Args[0], err)
+			os.Exit(1)
+		}
+		fmt.Printf("%s [PID] %d running...\n", os.Args[0], cmd.Process.Pid)
+		os.Exit(0)
 	}
 }
 
 func main() {
 	flag.Parse()
+
+	daemon()
 
 	c := cron.New()
 

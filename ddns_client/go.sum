@@ -1,3 +1,5 @@
+github.com/CodyGuo/godaemon v0.0.0-20200413142854-c36b39fdd071 h1:GFI7Rs86D4qip+tBvMcv0ux5kHbngC0rNWfgpTeVoAQ=
+github.com/CodyGuo/godaemon v0.0.0-20200413142854-c36b39fdd071/go.mod h1:VBC/JvjvRkcgE7wMjDJs7Y94Ta6KSpCWDquUKW+WbJo=
 github.com/aliyun/alibaba-cloud-sdk-go v1.61.920 h1:oVSVH+lkO4wB4Rpv98uAMtoTOKWQuDVuq8l0Zzn2Q6Q=
 github.com/aliyun/alibaba-cloud-sdk-go v1.61.920/go.mod h1:pUKYbK5JQ+1Dfxk80P0qxGqe5dkxDoabbZS7zOcouyA=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

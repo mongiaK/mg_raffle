@@ -16,7 +16,7 @@ import (
 
 func main() {
 	origin := "http://localhost/"
-	url := "ws://localhost:12345/echo"
+	url := "ws://localhost:12345/mongia/ws"
 	ws, err := websocket.Dial(url, "", origin)
 	if err != nil {
 		log.Fatal(err)
