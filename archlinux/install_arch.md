@@ -30,3 +30,10 @@
 * wechat-uos
 * chrome
 * ... 
+
+## bugs
+
+* 蓝牙无法连接
+    
+journalctl 显示protocol not found
+编辑 /etc/pulse/daemon.conf   修改 exit-ilde-time = -1
