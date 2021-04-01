@@ -39,6 +39,7 @@ cat > main.cpp << EOF
 
 #include <iostream>
 
+#include "log.h"
 #include "args.h"
 
 void parse_options(int argc, char* argv[])
