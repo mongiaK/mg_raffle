@@ -29,6 +29,7 @@
 * listen1 音乐播放器
 * wechat-uos
 * chrome
+* utools
 * ... 
 
 ## bugs

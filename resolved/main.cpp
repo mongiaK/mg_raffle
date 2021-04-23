@@ -36,6 +36,7 @@ void parse_options(int argc, char* argv[])
 
         switch(c) {
             case 'h':
+                err_quit("help");
                 break;
             case 'v':
                 break;
