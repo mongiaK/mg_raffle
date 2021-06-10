@@ -10,10 +10,11 @@
 #pragma once
 
 #include <assert.h>
-#include <queue>
-#include <mutex>
+
 #include <chrono>
 #include <condition_variable>
+#include <mutex>
+#include <queue>
 
 template <typename Connection>
 class ConnectionPool {
@@ -78,9 +79,7 @@ class ConnectionGuard {
 
     bool check_available() const { return _pool != NULL && _conn != NULL; }
 
-    Connection* operator -> () {
-        return _conn;
-    }
+    Connection* operator->() { return _conn; }
 
    private:
     ConnectionPool<Connection>* _pool;
