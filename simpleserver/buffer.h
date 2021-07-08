@@ -1,19 +1,22 @@
 /*================================================================
-*  
+*
 *  文件名称：buffer.h
 *  创 建 者: mongia
 *  创建日期：2021年06月04日
-*  
+*
 ================================================================*/
 
 #pragma once
+
+#include <assert.h>
+#include <string.h>
 
 #include <cstdlib>
 #include <list>
 #include <map>
 #include <mutex>
-#include <string.h>
-#include <assert.h>
+#include <queue>
+
 #include "log.h"
 #include "ss.h"
 
@@ -38,13 +41,13 @@ class SBuffer {
    public:
     SBuffer(int allocate_size) : _alloc_size(allocate_size) {
         _real_size = malloc_size(_alloc_size);
-        _headp = (char *)malloc(1000 * sizeof(char));
+        _headp = (char*)malloc(1000 * sizeof(char));
         if (_headp == NULL) {
-            slog_warn << "new buffer fail" << strerror(errno);
+            slog_warn("new buffer fail" << strerror(errno));
             _real_size = 0;
         }
-        _reservep = _headp;
-        _reserve_size = _real_size;
+        _remainp = _headp;
+        _remain_size = _real_size;
     }
 
     ~SBuffer() {
@@ -55,29 +58,29 @@ class SBuffer {
     }
 
     void usage(int len) {
-        assert(len <= _reserve_size);
-        _reservep += len;
-        _reserve_size -= len;
+        assert(len <= _remain_size);
+        _remainp += len;
+        _remain_size -= len;
     }
 
     void reset() {
-        _reservep = _headp;
-        _reserve_size = _real_size;
+        _remainp = _headp;
+        _remain_size = _real_size;
     }
 
-    char* get_buf() const  { return _reservep; }
-    int get_remain_size() const { return _reserve_size; }
+    char* get_buf() const { return _remainp; }
+    int get_remain_size() const { return _remain_size; }
 
     int get_size() const { return _alloc_size; }
     int get_real_size() const { return _real_size; }
-    int get_usage_size() const { return _reservep - _headp; }
+    int get_usage_size() const { return _remainp - _headp; }
 
    private:
     int _alloc_size;
     int _real_size;
     char* _headp;
-    char* _reservep;
-    int _reserve_size;
+    char* _remainp;
+    int _remain_size;
 };
 
 class SBufferPool {
@@ -86,7 +89,7 @@ class SBufferPool {
         BufferList(int size) : _buffer_size(size) {
             for (int i = 0; i < 1000; i++) {
                 SBufferSP buf(new SBuffer(size));
-                if(buf->get_real_size() > 0) {
+                if (buf->get_real_size() > 0) {
                     _buf_list.push_back(buf);
                 }
             }
@@ -122,7 +125,7 @@ class SBufferPool {
         _bufsets[2048] = BufferListSP(new BufferList(2048));
         _bufsets[4096] = BufferListSP(new BufferList(4096));
     }
-    ~SBufferPool() {};
+    ~SBufferPool(){};
 
     SBufferSP get_buffer(int size) {
         int real_size = malloc_size(size);
@@ -141,21 +144,50 @@ class SBufferPool {
 };
 
 class SBufferGuard {
-    public:
+   public:
     SBufferGuard(SBufferPoolSP poolsp, int size)
         : _buf_size(size), _buf_poolsp(poolsp) {
         _bufsp = _buf_poolsp->get_buffer(_buf_size);
     }
     ~SBufferGuard() { _buf_poolsp->give_back(_bufsp); }
 
-    SBufferSP operator->() {
-        return _bufsp;
-    }
+    SBufferSP operator->() { return _bufsp; }
 
    private:
     SBufferSP _bufsp;
     int _buf_size;
     SBufferPoolSP _buf_poolsp;
 };
+typedef std::shared_ptr<SBufferGuard> SBufferGuardSP;
 
+struct BufHandle {
+    BufHandle(int offset, int size, SBufferGuardSP bufsp)
+        : _offset(offset), _size(size), _bufsp(bufsp) {}
+    int _offset;
+    int _size;
+    SBufferGuardSP _bufsp;
+};
 
+class ReadBuffer {
+   public:
+    void Append(const BufHandle& buf_handle) {
+        _buf_list.push_back(buf_handle);
+    }
+
+   private:
+    std::deque<BufHandle> _buf_list;
+};
+typedef std::shared_ptr<ReadBuffer> ReadBufferSP;
+
+struct RecieveItem {
+    RecieveItem(int meta_size, int data_size, ReadBufferSP read_bufsp)
+        : _meta_size(meta_size),
+          _data_size(data_size),
+          _read_bufsp(read_bufsp) {}
+    int _meta_size;
+    int _data_size;
+    ReadBufferSP _read_bufsp;
+};
+
+class WriteBuffer {};
+typedef std::shared_ptr<WriteBuffer> WriteBufferSP;

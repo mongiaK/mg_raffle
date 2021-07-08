@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+message RpcMeta {
+    enum Type{
+        Request = 1;
+        Response = 2;
+    }
+    Type type = 1;
+    uint64 sequence_id = 2;
+    string method = 3;
+    uint64 timeout = 4;
+
+    int32 code = 5;
+    string msg = 6;
+};

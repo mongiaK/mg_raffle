@@ -13,6 +13,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
+#include <set>
 #include <atomic>
 #include <chrono>
 #include <functional>
@@ -179,7 +180,8 @@ int arr_test(int* vec, int length) {
         if (sum > max) {
             max = sum;
         }
-        if (sum <= 0) {            sum = 0;
+        if (sum <= 0) {
+            sum = 0;
         }
     }
     return max;
@@ -218,36 +220,35 @@ int minOperations(vector<int>& nums) {
     return steps;
 }
 
- void rotate(vector<int>& nums, int k) {
-        int size = nums.size();
-        int right = k % size;
-        if (right == 0) {
-            return;
-        }
-
-        int times = 0;
-        int save = nums[0];
-        int next = right;
-        while(times <= size) {
-            int tmp = nums[next];
-             nums[next] = save;
-             save = tmp;
-             next = (next + right)% size;
-             ++times;
-        }
+void rotate(vector<int>& nums, int k) {
+    int size = nums.size();
+    int right = k % size;
+    if (right == 0) {
+        return;
     }
 
+    int times = 0;
+    int save = nums[0];
+    int next = right;
+    while (times <= size) {
+        int tmp = nums[next];
+        nums[next] = save;
+        save = tmp;
+        next = (next + right) % size;
+        ++times;
+    }
+}
 int main(int argc, char* argv[]) {
     vector<int> param = {-1, -100, 1, 99};
     rotate(param, 2);
-//    func();
-//    int a[5] = {1, 2, 4, 4, 5};
-//    int ret = mid_find(a, 5, 4);
-//    std::cout << "ret " << ret << std::endl;
-//
-//    int a1[5] = {-5, -4, -3, -2, -1};
-//    ret = arr_test(a1, 5);
-//    std::cout << "ret " << ret << std::endl;
+    //    func();
+    //    int a[5] = {1, 2, 4, 4, 5};
+    //    int ret = mid_find(a, 5, 4);
+    //    std::cout << "ret " << ret << std::endl;
+    //
+    //    int a1[5] = {-5, -4, -3, -2, -1};
+    //    ret = arr_test(a1, 5);
+    //    std::cout << "ret " << ret << std::endl;
 
     //    vec_test();
     //

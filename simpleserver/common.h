@@ -22,5 +22,5 @@ static bool is_little_endian() {
         char  b;
     } ;
     static endian val = {1};
-    return val.b == 1;
+    return val.b != 1;
 }

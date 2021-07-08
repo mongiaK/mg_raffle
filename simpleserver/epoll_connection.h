@@ -16,26 +16,26 @@
 #include <memory>
 #include <mutex>
 
-#include "ss.h"
 #include "common.h"
 #include "connection.h"
-#include "stream.h"
-#include "server.h"
 #include "event.h"
+#include "server.h"
+#include "ss.h"
+#include "stream.h"
 
 class SEpollConnection : public SConnection {
    public:
     SEpollConnection(int fd, SEventSP eventsp, SServerSP serversp)
-        : _sockfd(fd), _eventsp(eventsp),_serversp(serversp) {
-        setnonblock(fd);
+        : _sockfd(fd), _eventsp(eventsp), _serversp(serversp) {
 
         _conn_statsp.reset(new SConnectionStat());
-        _streamsp.reset(new SStream(SEpollConnectionSP(this), _conn_statsp, _serversp));
+        _streamsp.reset(new SStream(SEpollConnectionSP(this), _serversp));
 
-        _event_infosp->_fd = _sockfd;
-        _event_infosp->_events = EPOLLIN | EPOLLOUT | EPOLLET;
-        _event_infosp->_callback = std::bind(&SEpollConnection::conn_callback,
-                                             this, std::placeholders::_1);
+        setnonblock(fd);
+        _event_infosp.reset(
+            new SEventInfo(_sockfd, EPOLLIN | EPOLLOUT | EPOLLET,
+                           std::bind(&SEpollConnection::conn_callback, this,
+                                     std::placeholders::_1)));
     }
     ~SEpollConnection() {}
     void set_dst_ip(char* dst_ip) { _dst_ip = dst_ip; }
@@ -45,14 +45,19 @@ class SEpollConnection : public SConnection {
     std::string get_dst_ip() const { return _dst_ip; }
 
     int get_dst_port() const { return _dst_port; }
-    
+
     int get_socket() const { return _sockfd; }
+
+    void register_request_callback(RequestCallback callback) {
+        _streamsp->register_request_callback(callback);
+    }
 
     bool register_event() { return _eventsp->add_event(_event_infosp); }
     bool remove_event() { return _eventsp->remove_event(_event_infosp); }
 
-    void on_close() {
-        _streamsp->on_close();
+    void on_close() { 
+        remove_event();
+        _streamsp->on_close(); 
     }
 
     void conn_callback(SEventInfoSP info) {
@@ -62,6 +67,8 @@ class SEpollConnection : public SConnection {
             _streamsp->on_write_some();
         }
     }
+
+    void fresh_stat(int len) { _conn_statsp->refresh_stat(len); }
 
    private:
     int _sockfd;          // 连接socket

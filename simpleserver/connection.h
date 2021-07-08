@@ -9,6 +9,7 @@
 #pragma once
 
 #include "ss.h"
+#include <cstdint>
 
 class SConnection {
    public:
@@ -22,12 +23,19 @@ class SConnection {
     virtual bool register_event() = 0;
     virtual bool remove_event() = 0;
     virtual void on_close() = 0;
+    virtual void fresh_stat(int size) = 0;
+    virtual void register_request_callback(RequestCallback) = 0;
 };
 
 class SConnectionStat {
    public:
     SConnectionStat() : _last_tick_time(0), _recieve_data_size(0) {}
-    int _last_tick_time;
-    int64_t _recieve_data_size;
+    ~SConnectionStat() {}
+    void refresh_stat(int size) {
+        _last_tick_time = time(NULL);
+        _recieve_data_size += size;
+    }
+    std::atomic<uint64_t> _last_tick_time;
+    std::atomic<uint64_t> _recieve_data_size;
 };
 

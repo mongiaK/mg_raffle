@@ -63,3 +63,7 @@ class SStream;
 typedef std::shared_ptr<SStream> SStreamSP;
 
 typedef std::function<void(SEventInfoSP)> EventCallback;
+
+class SRequest;
+typedef std::shared_ptr<SRequest> SRequestSP;
+typedef std::function<void(SRequestSP)> RequestCallback;

@@ -17,6 +17,7 @@ struct SEventInfo {
     SEventInfo(int fd, int events, EventCallback callback)
         : _fd(fd), _events(events), _callback(callback) {}
 };
+typedef std::shared_ptr<SEventInfo> SEventInfoSP;
 
 class SEvent {
    public:

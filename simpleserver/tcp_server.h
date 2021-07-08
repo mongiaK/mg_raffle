@@ -18,6 +18,7 @@
 #include "log.h"
 #include "buffer.h"
 #include "server.h"
+#include <functional>
 
 
 class STCPServer : public SServer {
@@ -52,23 +53,30 @@ class STCPServer : public SServer {
         int clientfd =
             accept(info->_fd, (struct sockaddr*)&client_addr, &client_len);
         if (clientfd <= 0) {
-            slog_error << "accept connect fail. " << strerror(errno);
+            slog_error("accept connect fail. " << strerror(errno));
             return;
         }
 
         SConnectionSP conn = create_connection(clientfd, _eventsp);
         conn->set_dst_ip(inet_ntoa(client_addr.sin_addr));
         conn->set_dst_port(ntohl(client_addr.sin_port));
+        conn->register_request_callback(std::bind(&STCPServer::request_callback, this, std::placeholders::_1));
 
         if (!check_connection_avalible(conn)) {
-            slog_warn << "reject connect: " << conn->get_dst_ip() << ":"
-                      << conn->get_dst_port();
+            slog_warn("reject connect: " << conn->get_dst_ip() << ":"
+                      << conn->get_dst_port());
             return;
         }
 
         if (conn->register_event()) {  // add client to event queue
             _conns[clientfd] = conn;
         }
+
+        slog_debug("accept connection" << conn->get_dst_ip() << ", remotefd: " << conn->get_socket());
+    }
+
+    void request_callback(SRequestSP request) {
+        request->process_request();
     }
 
     virtual SConnectionSP create_connection(int clientfd, SEventSP eventsp) {

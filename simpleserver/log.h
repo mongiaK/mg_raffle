@@ -10,8 +10,8 @@
 
 #include <iostream>
 
-#define slog_error std::cerr
-#define slog_info std::cout
-#define slog_debug std::cout
-#define slog_warn std::cout
+#define slog_error(x) std::cerr << x << std::endl;
+#define slog_info(x) std::cout << x << std::endl;
+#define slog_debug(x) std::cout << x << std::endl;
+#define slog_warn(x) std::cout << x << std::endl;
 
