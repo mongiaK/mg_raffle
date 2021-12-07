@@ -7,7 +7,6 @@
 ================================================================*/
 #pragma once
 
-#include <bits/stdint-intn.h>
 #include <fcntl.h>
 
 static void setnonblock(int fd) {

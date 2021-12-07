@@ -19,6 +19,18 @@
 #include <time.h>
 #include <unistd.h>
 
+#include <iostream>
+
+#define plog_debug(x) std::cout << "[debug] " << x << std::endl;
+#define plog_info(x) std::cout << "[info ] " << x << std::endl;
+#define plog_warn(x) std::cout << "[warn ] " << x << std::endl;
+#define plog_error(x) std::cout << "[error] " << x << std::endl;
+#define plog_fatal(x)                \
+    {                                \
+        std::cout << "[fatal] " << x << std::endl; \
+        exit(1);                     \
+    }
+
 /*
  * Simple error reporting functions.
  * Suggested in W. Richard Stevens' "Advanced Programming in UNIX
@@ -29,7 +41,7 @@
 
 static int stout = 1;
 static int logfd = stout;
-static void log_init(const char* logname);
+static void log_init(const char *logname);
 static void err_doit(int, int, const char *, va_list);
 
 /*
@@ -101,7 +113,7 @@ void err_quit(const char *fmt, ...) {
  */
 char *err_tstamp(void) {
     static const char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                             "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+                                   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
     static char str[32];
     static time_t lastt = 0;
     struct tm *tmp;

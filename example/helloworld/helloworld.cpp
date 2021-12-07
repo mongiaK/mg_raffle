@@ -239,8 +239,8 @@ void rotate(vector<int>& nums, int k) {
     }
 }
 int main(int argc, char* argv[]) {
-    vector<int> param = {-1, -100, 1, 99};
-    rotate(param, 2);
+//    vector<int> param = {-1, -100, 1, 99};
+//    rotate(param, 2);
     //    func();
     //    int a[5] = {1, 2, 4, 4, 5};
     //    int ret = mid_find(a, 5, 4);

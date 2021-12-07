@@ -8,8 +8,6 @@
 
 #pragma once
 
-#include <asm-generic/errno-base.h>
-
 #include <atomic>
 #include <cstring>
 #include <deque>

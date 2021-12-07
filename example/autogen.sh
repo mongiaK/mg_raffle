@@ -84,7 +84,7 @@ function genmakefile
 cat > makefile << EOF
 CXX:=clang++
 
-INCS=-I ../utils
+INCS=-I ../../utils
 
 CFLAGS=-g -Wall -O0 -std=c++11
 LIBS=

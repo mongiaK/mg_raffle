@@ -9,7 +9,6 @@
 #pragma once
 
 #include <assert.h>
-#include <bits/stdint-intn.h>
 #include <string.h>
 #include <unistd.h>
 

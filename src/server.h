@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <string>
+
 #include "ss.h"
 
 class SServer {
@@ -19,4 +21,6 @@ class SServer {
     virtual SBufferPoolSP get_buf_pool() = 0;
     virtual void release_connection(SConnectionSP) = 0;
     virtual SConnectionSP create_connection(int, SEventSP) = 0;
+    virtual std::string get_server_address() = 0;
+    virtual int get_server_port() = 0;
 };

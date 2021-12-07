@@ -10,7 +10,6 @@
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <string.h>
-#include <sys/epoll.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
