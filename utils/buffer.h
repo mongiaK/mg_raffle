@@ -17,6 +17,8 @@
 
 #include "lock.h"
 
+namespace  mg {
+
 const static uint32_t BUFFER_BLOCK_SIZE = 4 * 1024;
 const static uint32_t LARGE_BLOCK_SIZE  = 1024;
 
@@ -30,7 +32,7 @@ private:
 
     size_t _cur_remain;
 
-    pthread_spinlock_t _lock;
+    mg::SpinMutex _mtx;
 
 public:
     BufferPool() : _memory_usage(0) {
@@ -69,7 +71,7 @@ public:
     char * allocate(size_t size) {
         assert(size > 0);
 
-        SpinLock lock(_lock);
+        SpinLock _(_mtx);
         if(_cur_remain > size) {
             char * result = _cur_ptr;
             _cur_ptr += size;
@@ -83,7 +85,7 @@ public:
     char * allocate_align(size_t size) {
         assert(size > 0);
 
-        SpinLock lock(_lock);
+        SpinLock _(_mtx);
 
         uint32_t align = sizeof(void *);
         assert((align & (align - 1)) != 0);
@@ -105,3 +107,4 @@ public:
     }
 };
 
+}

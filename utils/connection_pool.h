@@ -16,7 +16,7 @@
 #include <mutex>
 #include <queue>
 
-template <typename Connection>
+template <class Connection>
 class ConnectionPool {
    public:
     ConnectionPool() {}
@@ -61,7 +61,7 @@ class ConnectionPool {
     std::condition_variable _non_empty;
 };
 
-template <typename Connection>
+template <class Connection>
 class ConnectionGuard {
    public:
     explicit ConnectionGuard(ConnectionPool<Connection>* pool)

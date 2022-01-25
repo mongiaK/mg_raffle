@@ -35,7 +35,6 @@ static uint32_t DecodeFixed32(const char* c) {
 }
 
 static uint32_t murmur_hash(const char* data, size_t n, uint32_t seed) {
-    // Similar to murmur hash
     const uint32_t m = 0xc6a4a793;
     const uint32_t r = 24;
     const char* limit = data + n;

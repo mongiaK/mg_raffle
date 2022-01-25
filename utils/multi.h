@@ -62,7 +62,7 @@ void thread_create(int threadnum)
 		int ret = pthread_create(&pid[i], NULL, thread, NULL);
 		if(ret != 0){
 #ifdef DEBUG
-			std::cout << "create thread failed! errno: " << errno << std::endl;
+            plog_info("create thread failed! errno: " << errno);
 #endif
 			++failed;
 			continue;
@@ -83,7 +83,7 @@ void thread_create(int threadnum)
 		sleep(1);
 	}
 #ifdef DEBUG
-	std::cout << "child process [" << getpid() << "] exit, thread run success times: " << success  << " failed times: " << failed << std::endl;
+    plog_info("child process [" << getpid() << "] exit, thread run success times: " << success  << " failed times: " << failed);
 #endif
 }
 

@@ -8,35 +8,62 @@
 
 #pragma once
 
-#include <pthread.h>
+#include <atomic>
+
+namespace mg {
+
+class SpinMutex {
+   public:
+    SpinMutex() : _mutex(ATOMIC_FLAG_INIT) {}
+    ~SpinMutex() {}
+    SpinMutex(const SpinMutex&) = delete;
+    SpinMutex& operator=(const SpinMutex&) = delete;
+
+    void lock() {
+        while (_mutex.test_and_set())
+            ;
+    }
+
+    void unlock() { _mutex.clear(); }
+
+   private:
+    std::atomic_flag _mutex;
+};
 
 class SpinLock {
    private:
-    pthread_spinlock_t& _lock;
+    SpinMutex& _mtx;
 
    public:
-    explicit SpinLock(pthread_spinlock_t& lock) : _lock(lock) {
-        pthread_spin_lock(&_lock);
-    }
+    explicit SpinLock(SpinMutex& mtx) : _mtx(mtx) { _mtx.lock(); }
 
-    ~SpinLock() { pthread_spin_unlock(&_lock); }
+    ~SpinLock() { _mtx.unlock(); }
 
     SpinLock(const SpinLock&) = delete;
     SpinLock& operator=(const SpinLock&) = delete;
 };
 
-class MutexLock {
-   private:
-    pthread_mutex_t& _lock;
+}  // namespace mg
 
-   public:
-    explicit MutexLock(pthread_mutex_t& lock) : _lock(lock) {
-        pthread_mutex_lock(&_lock);
+#ifdef MG_TEST
+#include <thread>
+#include <vector>
+#include <function>
+
+#include "log.h"
+
+SpinMutex mtx;
+
+void append(int x) {
+    SpinLock _(mtx);
+    plog_info("thread #" << x);
+}
+
+void lock_test() {
+    std::vector<std::thread> threads;
+    for(int i = 0; i < 10; i++) {
+        threads.push_back(std::thread(append, i);)
     }
-
-    ~MutexLock() { pthread_mutex_unlock(&_lock); }
-
-    MutexLock(const MutexLock&) = delete;
-    MutexLock& operator=(const MutexLock&) = delete;
-};
-
+    for(auto& t: threads) t.join();
+}
+#endif

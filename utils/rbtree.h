@@ -6,11 +6,12 @@
 *
 ================================================================*/
 
-#include <bits/stdint-uintn.h>
-#include <pthread.h>
+#include <function>
 
 #include "lock.h"
 #include "log.h"
+
+namespace mg {
 
 enum RBNodeType {
     RBRedNode = 0,
@@ -30,93 +31,52 @@ struct RBNode {
 template <class T>
 class RBTree {
    public:
-    RBTree() : _tree(nullptr) { pthread_spin_init(&_lock, 0); }
-    ~RBTree() { pthread_spin_destroy(&_lock); }
+    RBTree() : _tree(nullptr), _count(0) {}
+    ~RBTree() {}
 
-   private:
-    //                  P                         p
-    //                /                          /
-    //              node                       rchild
-    //              /  \                        /  \
-    //         lchild  rchild         =>     node   rrchild
-    //                  /   \                /  \
-    //            rlchild   rrchild      lchild  rlchild
-    //
-    void left_rotate(RBNode<T>* node) {
-        RBNode<T>* p = node->_parent;
-        RBNode<T>* rchild = node->_rchild;
+    std::function<int(T&, T&)> compare;
 
-        if (rchild->_lchild != nullptr) rchild->_lchild->_parent = node;
-
-        node->_rchild = rchild->_lchild;
-        rchild->_parent = p;
-
-        if (p == nullptr) {
-            _tree = rchild;
-        } else if (p->_lchild == node) {
-            p->_lchild = rchild;
-        } else if (p->_rchild == node) {
-            p->_rchild = rchild;
+   public:
+    RBNode<T>* search(const T& val) {
+        RBNode<T>* p = _tree;
+        while (p != nullptr) {
+            if (p->_val > val) {
+                p = p->_lchild;
+            } else if (p->_val < val) {
+                p = p->_rchild;
+            } else {
+                return p;
+            }
         }
-        rchild->_lchild = node;
-        node->_parent = rchild;
+
+        return nullptr;
     }
 
-    //                  P                         p
-    //                /                          /
-    //              node                        lchild
-    //              /  \                        /  \
-    //         lchild  rchild         =>   llchild node
-    //         /   \                               /  \
-    //   llchild   lrchild                   lrchild  rchild
-    //
-    void right_rotate(RBNode<T>* node) {
-        RBNode<T>* p = node->_parent;
-        RBNode<T>* lchild = node->_lchild;
-
-        if (lchild->_rchild != nullptr) lchild->_rchild->_parent = node;
-
-        node->_lchild = lchild->_rchild;
-        lchild->_parent = p;
-
-        if (p == nullptr) {
-            _tree = lchild;
-        } else if (p->_lchild == node) {
-            p->_lchild = lchild;
-        } else {
-            p->_rchild = lchild;
-        }
-
-        lchild->_rchild = node;
-        node->_parent = lchild;
-    }
-
-    RBNode<T>* create_node(T val) {
-        RBNode<T>* node = new RBNode<T>();
-        if (node == nullptr) {
-            return nullptr;
-        }
-        node->_type = RBRedNode;
-        node->_val = val;
-        node->_parent = nullptr;
-        node->_lchild = nullptr;
-        node->_rchild = nullptr;
-
-        return node;
-    }
-
-    void insert(T val) {
-        SpinLock _(_lock);
-        if (_tree == nullptr) {
-            _tree = create_node(val);
-            if (_tree != nullptr) _tree->_type = RBBlackNode;
-            return;
-        }
-
+    /*
+     * return val
+     *
+     * 0: success
+     * 1: error
+     * -1: exist
+     *
+     * */
+    int insert(T val) {
         RBNode<T>* locate = create_node(val);
-        if (locate == nullptr) return;
+        if (nullptr == locate) {
+#ifdef PDEBUG
+            plog_error("create node failed");
+#endif
+            return 0;
+        }
 
-        // insert node and find parent node
+        SpinLock _(_lock);
+        if (_tree == nullptr) {  // tree is empty
+            _tree = locate;
+            _tree->_type = RBBlackNode;
+            return 1;
+        }
+
+        // find insert position
         RBNode<T>* root = _tree;
         RBNode<T>* p = nullptr;
         while (root != nullptr) {
@@ -126,11 +86,14 @@ class RBTree {
             } else if (p->_val < val) {
                 root = root->_rchild;
             } else {
-                root->_val = val;
-                return;
+#ifdef PDEBUG
+                plog_warning("node exist");
+#endif
+                return -1;
             }
         }
 
+        // insert node
         locate->_parent = p;
         if (locate->_val < p->_val) {
             p->_lchild = locate;
@@ -140,23 +103,25 @@ class RBTree {
         _count++;
 
         // rebalance tree
-        RBNode<T>* s = nullptr;
+        RBNode<T>* u = nullptr;
         RBNode<T>* pp = nullptr;
-        while (
-            (p = locate->_parent) &&
-            (p->_type == RBRedNode)) {  // parent is black， break， because
-                                        // insert is red，dont need to rebalance
-            pp = p->_parent;  // parent's parent node
-            s = locate == p->_rchild ? p->_lchild : p->_rchild;  // uncle  node
+        while ((p = locate->_parent) &&
+               (p->_type == RBRedNode)) {  // insert is red, parent is red too,
+                                           // so need to rebalance
 
-            //             PP (Black)                        PP(Red)
-            //             /       \                          /  \
-            //         P(Red)      S(Red)         =>    P(Black) S(Black)
-            //           /                                  /
-            //       I(Red)                              I(Red)
-            if (s && s->_type == RBRedNode) {
+            pp = p->_parent;  // parent's parent node, because parent is red, so
+                              // pp must be exist
+            u = locate == p->_rchild ? pp->_lchild : pp->_rchild;  // uncle node
+
+            if (u && u->_type == RBRedNode) {
+                //             PP (Black)                        PP(Red)
+                //             /       \                          /  \
+                //         P(Red)      U(Red)         =>    P(Black) U(Black)
+                //           /                                  /
+                //       I(Red)                              I(Red)
+
                 pp->_type = RBRedNode;
-                s->_type = RBBlackNode;
+                u->_type = RBBlackNode;
                 p->_type = RBBlackNode;
 
                 locate = pp;
@@ -216,179 +181,236 @@ class RBTree {
     void del(T& val) {
         SpinLock _(_lock);
 
-        RBNode<T>* d = _tree;    // del node
-        RBNode<T>* r = nullptr;  // replace node
+        RBNode<T>* d = search(val);  // del node
+        RBNode<T>* r = nullptr;      // replace node
 
-        while (d != nullptr) {
-            if (d->_val > val) {
-                d = d->_lchild;
-            } else if (d->_val < val) {
-                d = d->_rchild;
-            } else {
-                break;  // find node
-            }
-        }
+        if (d == nullptr) return;  // node not exist
 
-        if (d == nullptr) return;  // no this node
-
-        // find replace node
+        // find replace node  and replace node into delete position, set replace
+        // node is delete
         if (d->_lchild != nullptr && d->_rchild != nullptr) {
             r = find_right_replace_node(d);
-        } else if (d->_lchild != nullptr) {
-            r = find_left_replace_node(d);
-        } else if (d->_rchild != nullptr) {
-            r = find_right_replace_node(d);
+            change_node(d, r);
         }
 
-        if (r == nullptr) {  // delete is tree root
+        // if node is red, so the node dont have leaf
+        if (d->_type == RBRedNode) {
             delete_leaf_node(d);
             return;
         }
 
-#if PDEBUG
-        if (r->_lchild != nullptr && r->_rchild != nullptr) {
-            plog_error("replace node find error");
+        // delete node is black, and has one leaf, leaf must be red
+        if (d->_lchild != nullptr) {
+            change_node(d, d->_lchild);
+            delete_leaf_node(d);
             return;
-        }
-#endif
-
-        // replace is red
-
-        //                      r(Red)
-        //               /                 \
-        //      rlchild(nil or black)  rrchild(nil or black)
-        if (r->_type == RBRedNode) {  // replace node has only one child at most
-            change_node(d, r);        // change place with delete node
-            // replace has lchild, because replace is red， so the child must be
-            // black, so change replace with child
-            if (d->_lchild != nullptr) {
-#if PDEBUG
-                if (d->_lchild->_type == RBRedNode) {
-                    plog_error("replace is red, it's child is red too, error happen")
-                }
-#endif
-                change_node(d, d->_lchild, false);
-            } else if (d->_rchild != nullptr){
-#if PDEBUG
-                if (d->_rchild->_type == RBRedNode) {
-                    plog_error("replace is red, it's child is red too, error happen")
-                }
-#endif
-                change_node(d, d->_rchild, false);
-            }
-            delete_leaf_node(d);  // delete node
+        } else if (d->_rchild != nullptr) {
+            change_node(d, d->_rchild);
+            delete_leaf_node(d);
             return;
         }
 
-        // replace is black
+        // 思想：
+        // 第一步：把兄弟节点边黑
+        // 第二步：兄弟节点的子节点都是黑，那么直接将兄弟节点设置为红色，递归处理
+        // 第三步：兄弟节点的子节点存在红色节点，那么把这个红色节点借过来，保证黑色节点删除之后黑高不变。
 
-        // replace node has only one child at most
-        //                            r(Black)
-        //           /                                   \
-        //       rlchild(nil or black or red)     rrchild(nil or black or red)
-
-        if (r->_lchild != nullptr) {  
-            //                  d(black)
-            //                       
-            //                r(black)
-            //                /
-            //              rlchild(red)
-            if (r->_lchild->_type == RBRedNode) {
-                change_node(d, r, false);
-
-                change_node(d, d->_lchild);
-                delete_leaf_node(d);
-                return;
-            } else {
-#if PDEBUG
-                plog_error(
-                    "replace is black,and it's child is black too, error "
-                    "happen");
-                return;
-#endif
-            }
-        } else if (r->_rchild != nullptr) {  // replace is black,
-            //                  d(black)
-            //                       
-            //                r(black)
-            //                      \
-            //                   rrchild(red)
-            //
-            if (r->_rchild->_type == RBRedNode) {
-                change_node(d, r, false);
-
-                change_node(d, d->_rchild);
-                delete_leaf_node(d);
-                return;
-            } else {  
-#if PDEBUG
-                plog_error(
-                    "replace is black, and it's child is black too, error "
-                    "happen");
-                return;
-#endif
-            }
-        }
-
-        // delete black leaf node
-        change_node(d, r);
+        // delete node is black, dont have leaf
         RBNode<T>* p = d->_parent;
-        RBNode<T>* s = nullptr;
-        RBNode<T>* sl = nullptr;
-        RBNode<T>* sr = nullptr;
-    
-        if (d == p->_lchild) {
-            s = p->_rchild;
-            if (s->_type == RBRedNode) {
-                //               p(black)                             p(Red)                            s(black)
-                //                /    \                               /   \                             /    \
-                //          d(black)  s(red)           =>      d(black)  s(black)              =>     p(red)  sr(black)
-                //                    /    \                               /    \                    /    \
-                //              sl(black)  sr(black)                  sl(black)  sr(black)     d(black) sl(black)
-                //
-                s->_type = RBBlackNode;
-                p->_type =  RBRedNode;
+        RBNode<T>* b = nullptr;
+        RBNode<T>* node =
+            d;  // node
+                // 表示该子树的黑高即将减1，要么在node跟其父亲之间加一个黑色节点，要么将node的兄弟节点减一个黑色节点
+        while ((node && node->_type == RBBlackNode) && node != _tree) {
+            if (p->_lchild == node) {
+                b = p->_rchild;
+                if (b->_type ==
+                    RBRedNode) {  // 执行此if语句并未将node对立侧的黑高-1或+1，只是从新找了一个uncle节点
+                    //         P(b)                      b(r) b(b)
+                    //     /        \                   /     \                /
+                    //     \
+                    //  node(b)    b(r)         =>    p(b)     br(b)    =>  p(r)
+                    //  br(b)
+                    //              /   \            /    \                 /  \
+                    //           bl(b) br(b)     node(b)  bl(b)         node(b)
+                    //           bl(b)
+                    b->_type = RBBlackNode;
+                    p->_type = RBRedNode;
+                    left_rotate(p);
+                    b = p->_rchild;
+                }
 
-                left_rotate(p);
-                delete_leaf_node(d);
-            } else if (s->_type == RBBlackNode) {
-                sl = s->_lchild;
-                sr = s->_rchild;
-                if (sr != nullptr && sr->_type == RBRedNode) {
-                    //                p(p color)                                p(black)                                          s(p color)
-                    //                 /        \                                 /   \                                           /          \
-                    //              d(black)   s(black)             =>     d(black)  s(p color)            =>              p(black)       sr(black)
-                    //                              \                                      \                                     /
-                    //                              sr(red or nil)                        sr(black)                         d(black)
-                    s->_type = p->_type;
-                    p->_type = RBBlackNode;
-                    sr->_type = RBBlackNode;
-                    left_rotate(p);
-                    delete_leaf_node(d);
-                } else if (sl != nullptr && sl->_type == RBRedNode) {
-                    //                p(p color)                                 p(black)                                          sl(p color)
-                    //                 /        \                                 /   \                                           /          \
-                    //              d(black)   s(black)             =>     d(black)  sl(p color)            =>                    p(black)     s(black)
-                    //                          /                                         \                                     /   \
-                    //                       sl(red)                                     s (black)                         d(black) sl()
-                    right_rotate(s);
-                    sl->_type = p->_type;
-                    p->_type = RBBlackNode;
-                    left_rotate(p);
-                    delete_leaf_node(d);
+                // 如果执行了上面的if语句，此刻的b值得是上面的bl，如果bl存在左右子树，那么必然是红色。
+                // 所以走到这个条件语句有两种情况，第一种是第一次f循环，bl的左右子树都是空的，第二种情况就是递归到树的更上层的时候，左右都是黑色，只有一个是黑色的是不存在的。不满足红黑树平衡
+                if ((b->_lchild == nullptr ||
+                     b->_lchild->_type == RBBlackNode) &&
+                    (b->_rchild == nullptr ||
+                     b->_rchild->_type ==
+                         RBBlackNode)) {  // 此if语句将node对立侧黑高减1，所以需要递归到上一级，祖父节点去调整
+                    b->_type = RBBlackNode;
+                    node = p;
+                    p = node->_parent;
                 } else {
-                    //                      p(p color)
-                    //                       /     \
-                    //                  d(black)   s(black)
-                    if (p->_type == RBRedNode) {
-                        left_rotate(p);
-                        delete_leaf_node(d);
-                    } else {
-
+                    if (b->_rchild->_type ==
+                        RBBlackNode) {  // 此if将uncle节点的右孩子变成红色
+                        //            p()                     p() p()
+                        //          /    \                   /
+                        //          \                /     \
+                        //        node() b(b)        =>    node()  b(r)      =>
+                        //        node()  bl(b)
+                        //                /  \                    / \ /   \
+                        //            bl(r)  br(b)              bl(b) br(b)
+                        //            bll()   b(r)
+                        //                                                                    /    \
+                        //                                                                  blr()  br(b)
+                        b->_lchild->_type = RBBlackNode;
+                        b->_type = RBRedNode;
+                        right_rotate(b);
+                        b = p->_rchild;
                     }
+                    //          p()                      p(b) b()
+                    //        /     \                   /     \                /
+                    //        \
+                    //      node()  b(b)          => node()  b()        => p(b)
+                    //      br(b)
+                    //             /   \                     /  \           / \
+                    //            bl()   br(r)             bl() br(b)    node()
+                    //            bl()
+
+                    b->_type = p->_type;
+                    p->_type = RBBlackNode;
+                    b->_rchild = RBBlackNode;
+                    left_rotate(p);
+                    break;
+                }
+            } else {
+                b = p->_lchild;
+                if (b->_type == RBRedNode) {
+                    //         P(b)                      p(r) b(b)
+                    //     /        \                   /     \                /
+                    //     \
+                    //   b(r)      node()      =>    b(b)    node(b)    => bl(b)
+                    //   p(r)
+                    //      /   \                        / \ /  \
+                    //bl(b) br(b)                bl(b)  br(b) br(b) node(b)
+                    b->_type = RBBlackNode;
+                    p->_type = RBRedNode;
+                    right_rotate(p);
+                    b = p->_lchild;
+                }
+
+                if ((b->_lchild == nullptr ||
+                     b->_lchild->_type == RBBlackNode) &&
+                    (b->_rchild == nullptr ||
+                     b->_rchild->_type == RBBlackNode)) {
+                    b->_type = RBBlackNode;
+                    node = p;
+                    p = node->_parent;
+                } else {
+                    if (b->_lchild->_type ==
+                        RBBlackNode) {  // 此if将兄弟节点的右孩子变成红色
+                        //           p()
+                        //         /     \
+                        //       b(b)    node()
+                        //      /   \
+                        //    bl(b)    br()
+                        b->_rchild->_type = RBBlackNode;
+                        b->_type = RBRedNode;
+                        left_rotate(b);
+                        b = p->_lchild;
+                    }
+                    //          p()                      p(b) b()
+                    //        /     \                   /     \                /
+                    //        \
+                    //      node()  b(b)          => node()  b()        => p(b)
+                    //      br(b)
+                    //             /   \                     /  \           / \
+                    //            bl()   br(r)             bl() br(b)    node()
+                    //            bl()
+
+                    b->_type = p->_type;
+                    p->_type = RBBlackNode;
+                    b->_lchild = RBBlackNode;
+                    right_rotate(p);
+                    break;
                 }
             }
         }
+        node->_type = RBBlackNode;
+
+        delete_leaf_node(d);
+    }
+
+   private:
+    //                  P                         p
+    //                /                          /
+    //              node                       rchild
+    //              /  \                        /  \
+    //         lchild  rchild         =>     node   rrchild
+    //                  /   \                /  \
+    //            rlchild   rrchild      lchild  rlchild
+    //
+    void left_rotate(RBNode<T>* node) {
+        RBNode<T>* p = node->_parent;
+        RBNode<T>* rchild = node->_rchild;
+
+        if (rchild->_lchild != nullptr) rchild->_lchild->_parent = node;
+
+        node->_rchild = rchild->_lchild;
+        rchild->_parent = p;
+
+        if (p == nullptr) {
+            _tree = rchild;
+        } else if (p->_lchild == node) {
+            p->_lchild = rchild;
+        } else if (p->_rchild == node) {
+            p->_rchild = rchild;
+        }
+        rchild->_lchild = node;
+        node->_parent = rchild;
+    }
+
+    //                  P                         p
+    //                /                          /
+    //              node                        lchild
+    //              /  \                        /  \
+    //         lchild  rchild         =>   llchild node
+    //         /   \                               /  \
+    //   llchild   lrchild                   lrchild  rchild
+    //
+    void right_rotate(RBNode<T>* node) {
+        RBNode<T>* p = node->_parent;
+        RBNode<T>* lchild = node->_lchild;
+
+        if (lchild->_rchild != nullptr) lchild->_rchild->_parent = node;
+
+        node->_lchild = lchild->_rchild;
+        lchild->_parent = p;
+
+        if (p == nullptr) {
+            _tree = lchild;
+        } else if (p->_lchild == node) {
+            p->_lchild = lchild;
+        } else {
+            p->_rchild = lchild;
+        }
+
+        lchild->_rchild = node;
+        node->_parent = lchild;
+    }
+
+    RBNode<T>* create_node(T& val) {
+        RBNode<T>* node = new RBNode<T>();
+        if (node == nullptr) {
+            return nullptr;
+        }
+        node->_type = RBRedNode;
+        node->_val = val;
+        node->_parent = nullptr;
+        node->_lchild = nullptr;
+        node->_rchild = nullptr;
+
+        return node;
     }
 
     void delete_leaf_node(RBNode<T>* leaf) {
@@ -458,31 +480,33 @@ class RBTree {
         return r;
     }
 
-    RBNode<T>* find_left_replace_node(RBNode<T>* n) {
-        RBNode<T>* r = n->_lchild;
-        while (r->_rchild != nullptr) {
-            r = r->_rchild;
-        }
-        return r;
-    }
-
-    RBNode<T>* search(T val) {
-        RBNode<T>* p = _tree;
-        while (p != nullptr) {
-            if (p->_val > val) {
-                p = p->_lchild;
-            } else if (p->_val < val) {
-                p = p->_rchild;
-            } else {
-                return p;
-            }
-        }
-
-        return nullptr;
-    }
-
    private:
     RBNode<T>* _tree;
     uint64_t _count;
-    pthread_spinlock_t _lock;
+
+    SpinMutex _lock;
 };
+
+}  // namespace mg
+
+#ifdef MG_TEST
+void rbtree_test() {
+    mg::RBTree<int> rb;
+    rb.insert(1);
+    rb.insert(5);
+    rb.insert(8);
+    rb.insert(10);
+
+    rb.search(2);
+    rb.search(5);
+
+    rb.del(5);
+    rb.del(1);
+
+    rb.insert(123);
+    rb.insert(12);
+    rb.insert(42);
+    rb.insert(1);
+    rb.insert(1234);
+}
+#endif
