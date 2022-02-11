@@ -6,10 +6,11 @@
 *
 ================================================================*/
 
-#include <function>
-
 #include "lock.h"
+
+#ifdef MG_DEBUG
 #include "log.h"
+#endif
 
 namespace mg {
 
@@ -33,8 +34,6 @@ class RBTree {
    public:
     RBTree() : _tree(nullptr), _count(0) {}
     ~RBTree() {}
-
-    std::function<int(T&, T&)> compare;
 
    public:
     RBNode<T>* search(const T& val) {

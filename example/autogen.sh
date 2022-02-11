@@ -32,15 +32,30 @@ cat > main.cpp << EOF
 *  
 ================================================================*/
 
-#include <cstdlib>
-#include <stdio.h>
-#include <stdlib.h>
+#include <bits/stdc++.h>
 #include <getopt.h>
 
-#include <iostream>
+char* cmd_long_options_to_short_options(const struct option options[])
+{
+    char short_options[UCHAR_MAX * 3 + 1];
+    char *p = short_options;
 
-#include "log.h"
-#include "args.h"
+    for (; options->name; options++) {
+        const struct option *o = options;
+        if (o->flag == NULL && o->val > 0 && o->val <= UCHAR_MAX) {
+            *p++ = o->val;
+            if (o->has_arg == required_argument) {
+                *p++ = ':';
+            }   else if (o->has_arg == optional_argument) {
+                *p++ = ':';
+                *p++ = ':';
+            }
+        }
+    }
+    *p++ = '\0';
+
+    return strdup(short_options);
+}
 
 void parse_options(int argc, char* argv[])
 {
@@ -82,28 +97,36 @@ EOF
 function genmakefile
 {
 cat > makefile << EOF
+target:=${object}
+
 CXX:=clang++
 
 INCS=-I ../../utils
-
 CFLAGS=-g -Wall -O0 -std=c++11
 LIBS=
+OBJ_DIR=obj
 
-SRC=\${wildcard *.cpp}
-OBJ=\${patsubst %.cpp,%.o,\${SRC}}
+DIRS := \$(shell find . -maxdepth 5 -type d)
+VPATH = \${DIRS}
+
+SRC=\$(foreach dir, \$(DIRS), \$(wildcard \$(dir)/*.cpp))
+OBJ=\$(addprefix \$(OBJ_DIR)/,\$(patsubst %.cpp,%.o,\$(SRC)))
+
+all: prepare \$(target)
+
+prepare:
+	@mkdir -p \${OBJ_DIR}
+
+\$(target): \${OBJ}
+	\${CXX} \${CFLAGS} \${INCS} $^ -o \$@ \${LIBS}
+
+\$(OBJ_DIR)/%.o: %.cpp
+	\${CXX} \${CFLAGS} \${INCS} -c $< -o \$@
 
 .PHONY: clean
 
-all: ${object}
-
-${object}: main.o
-	\${CXX} \${CFLAGS} \${INCS} $^ -o \$@ \${LIBS}
-
-%.o:%.cpp
-	\${CXX} \${CFLAGS} \${INCS} -c $< -o \$@
-
 clean:
-	@rm -f \${OBJ} ${object}
+	@rm -rf \${OBJ_DIR} \${target}
 EOF
 }
 
