@@ -8,51 +8,59 @@
 #ifndef __MG_RBTREE_INCLUDE__
 #define __MG_RBTREE_INCLUDE__
 
+#include "mg_config.h"
 #include "mg_core.h"
 
 #define RBREDNODE 0
 #define RBBLACKNODE 1
 
-struct mg_rb_node {
-    _mg_uint8_t _type;
+
+typedef struct mg_rb_node {
+    mg_uint8_t _type;
 
     mg_rb_node* _parent;
     mg_rb_node* _lchild;
     mg_rb_node* _rchild;
-};
+} mg_rb_node_t;
 
-struct mg_rb_tree {
-    _mg_size_t _count;
-    _mg_rb_node_compare _compare;
+// return
+// = 0: l = r
+// > 0: l < r
+// < 0: l > r
+typedef mg_int32_t (*mg_rb_node_compare)(mg_rb_node_t* l, mg_rb_node_t* r);
+
+typedef struct mg_rb_tree {
+    mg_size_t _count;
+    mg_rb_node_compare _compare;
 
     mg_rb_node* _root;
-};
+} mg_rb_tree_t;
 
-static _mg_inline _mg_bool_t rb_node_is_red(mg_rb_node* node) {
+static mg_inline mg_bool_t rb_node_is_red(mg_rb_node* node) {
     return node->_type == RBREDNODE;
 }
 
-static _mg_inline _mg_bool_t rb_node_is_black(mg_rb_node* node) {
+static mg_inline mg_bool_t rb_node_is_black(mg_rb_node* node) {
     return node->_type == RBBLACKNODE;
 }
 
-static _mg_inline _mg_void_t init_rb_node(mg_rb_node* rbnode) {
+static mg_inline mg_void_t init_rb_node(mg_rb_node* rbnode) {
     rbnode->_type = RBREDNODE;
     rbnode->_parent = rbnode->_lchild = rbnode->_rchild = nullptr;
 }
 
-static _mg_inline _mg_void_t init_rb_tree(mg_rb_tree* rbtree,
-                                _mg_rb_node_compare compare) {
+static mg_inline mg_void_t init_rb_tree(mg_rb_tree* rbtree,
+                                mg_rb_node_compare compare) {
     rbtree->_count = 0;
     rbtree->_compare = compare;
     rbtree->_root = nullptr;
 }
 
-static _mg_inline mg_rb_node* search_rb_node(mg_rb_node* node, mg_rb_tree* tree,
+static mg_inline mg_rb_node* search_rb_node(mg_rb_node* node, mg_rb_tree* tree,
                                          bool insert_position = false) {
     mg_rb_node* p = tree->_root;
     while (p != nullptr) {
-        _mg_int_t ret = tree->_compare(node, p);
+        mg_int_t ret = tree->_compare(node, p);
         if (ret > 0) {
             p = p->_lchild;
         } else if (ret < 0) {
@@ -72,7 +80,7 @@ static _mg_inline mg_rb_node* search_rb_node(mg_rb_node* node, mg_rb_tree* tree,
 //                  /x  \                /  \
 //            rlchild   rrchild      lchild  rlchild
 //
-static _mg_inline _mg_void_t left_rotate(mg_rb_node* node, mg_rb_tree* tree) {
+static mg_inline mg_void_t left_rotate(mg_rb_node* node, mg_rb_tree* tree) {
     mg_rb_node* p = node->_parent;
     mg_rb_node* rchild = node->_rchild;
 
@@ -100,7 +108,7 @@ static _mg_inline _mg_void_t left_rotate(mg_rb_node* node, mg_rb_tree* tree) {
 //         /   \x                               /  \
 //   llchild   lrchild                   lrchild  rchild
 //
-static _mg_inline _mg_void_t right_rotate(mg_rb_node* node, mg_rb_tree* tree) {
+static mg_inline mg_void_t right_rotate(mg_rb_node* node, mg_rb_tree* tree) {
     mg_rb_node* p = node->_parent;
     mg_rb_node* lchild = node->_lchild;
 
@@ -121,7 +129,7 @@ static _mg_inline _mg_void_t right_rotate(mg_rb_node* node, mg_rb_tree* tree) {
     node->_parent = lchild;
 }
 
-static _mg_inline _mg_void_t delete_leaf_node(mg_rb_node* leaf, mg_rb_tree* tree) {
+static mg_inline mg_void_t delete_leaf_node(mg_rb_node* leaf, mg_rb_tree* tree) {
     if (leaf == tree->_root) {
         tree->_root = nullptr;
         return;
@@ -136,7 +144,7 @@ static _mg_inline _mg_void_t delete_leaf_node(mg_rb_node* leaf, mg_rb_tree* tree
 }
 
 // n1 is higher than n2
-static _mg_inline _mg_void_t change_rb_node(mg_rb_node* n1, mg_rb_node* n2,
+static mg_inline mg_void_t change_rb_node(mg_rb_node* n1, mg_rb_node* n2,
                                   mg_rb_tree* tree, bool change_type = true) {
     if (n1 == n2) return;
     mg_rb_node* n1p = n1->_parent;
@@ -172,13 +180,13 @@ static _mg_inline _mg_void_t change_rb_node(mg_rb_node* n1, mg_rb_node* n2,
     }
 
     if (change_type) {
-        _mg_uint8_t typ = n1->_type;
+        mg_uint8_t typ = n1->_type;
         n1->_type = n2->_type;
         n2->_type = typ;
     }
 }
 
-static _mg_inline mg_rb_node* find_right_replace_node(mg_rb_node* n) {
+static mg_inline mg_rb_node* find_right_replace_node(mg_rb_node* n) {
     mg_rb_node* r = n->_rchild;
     while (r->_lchild != nullptr) {
         r = r->_lchild;
@@ -186,7 +194,7 @@ static _mg_inline mg_rb_node* find_right_replace_node(mg_rb_node* n) {
     return r;
 }
 
-static _mg_inline _mg_void_t insert_rb_node(mg_rb_node* node, mg_rb_tree* tree) {
+static mg_inline mg_void_t insert_rb_node(mg_rb_node* node, mg_rb_tree* tree) {
     mg_rb_node* p = search_rb_node(node, tree, true);
     if (p == nullptr) {
         tree->_root = node;
@@ -195,7 +203,7 @@ static _mg_inline _mg_void_t insert_rb_node(mg_rb_node* node, mg_rb_tree* tree) 
         return;
     }
 
-    _mg_int_t ret = tree->_compare(node, p);
+    mg_int_t ret = tree->_compare(node, p);
     if (ret == 0) {
         return;
     } else if (ret > 0) {
@@ -267,7 +275,7 @@ static _mg_inline _mg_void_t insert_rb_node(mg_rb_node* node, mg_rb_tree* tree) 
     tree->_root->_type = RBBLACKNODE;
 }
 
-static _mg_inline _mg_void_t delete_rb_node(mg_rb_node* dnode, mg_rb_tree* tree) {
+static mg_inline mg_void_t delete_rb_node(mg_rb_node* dnode, mg_rb_tree* tree) {
     mg_rb_node* d = search_rb_node(dnode, tree);
     if (d == nullptr) return;
 
@@ -368,10 +376,10 @@ static _mg_inline _mg_void_t delete_rb_node(mg_rb_node* dnode, mg_rb_tree* tree)
     delete_leaf_node(d, tree);
 }
 
-#define _MG_RBTREE_INIT_TREE(t, cmp) init_rb_tree(t, cmp)
-#define _MG_RBTREE_INIT_NODE(n) init_rb_node(n)
-#define _MG_RBTREE_INSERT_NODE(n, t) insert_rb_node(n, t)
-#define _MG_RBTREE_DELETE_NODE(n, t) delete_rb_node(n, t)
-#define _MG_RBTREE_GET_NODE(n, t) search_rb_node(n, t)
+#define MG_RBTREE_INIT_TREE(t, cmp) init_rb_tree(t, cmp)
+#define MG_RBTREE_INIT_NODE(n) init_rb_node(n)
+#define MG_RBTREE_INSERT_NODE(n, t) insert_rb_node(n, t)
+#define MG_RBTREE_DELETE_NODE(n, t) delete_rb_node(n, t)
+#define MG_RBTREE_GET_NODE(n, t) search_rb_node(n, t)
 
 #endif

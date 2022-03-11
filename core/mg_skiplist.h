@@ -6,30 +6,38 @@
 *  邮    箱：mr_pengmj@outlook.com
 *
 ================================================================*/
+#ifndef __MG_SKIPLIST_INCLUDE_H__
+#define __MG_SKIPLIST_INCLUDE_H__
 
-#pragma once
-
+#include "mg_config.h"
 #include "mg_core.h"
-#include "mg_list.h"
 
-#define MAX_SKIPLIST_LEVEL  64
+#define MAX_SKIPLIST_LEVEL 64
 
-struct mg_skiplist_node {
-    _mg_uint32_t _level;
-    _mg_list_t* _link;
-};
+// return
+// = 0: l = r
+// > 0: l < r
+// < 0: l > r
+typedef mg_int32_t (*mg_skiplist_node_compare)(mg_list_t* l, mg_list_t* r);
 
-struct mg_skiplist {
-    _mg_uint32_t _cur_level; 
-    _mg_skiplist_node_compare _compare;
-    _mg_list_t* _head[MAX_SKIPLIST_LEVEL];
-};
+typedef struct mg_skiplist_node {
+    mg_uint32_t _level;
+    mg_list_t* _link;
+} mg_skiplist_node_t;
 
-static inline _mg_void_t init_skiplist(mg_skiplist* skl, _mg_skiplist_node_compare compare) {
-    for(_mg_int32_t i = 0; i < MAX_SKIPLIST_LEVEL; i++) {
-        _MG_LIST_INIT(skl->_head[i]);
+typedef struct mg_skiplist {
+    mg_uint32_t _cur_level;
+    mg_skiplist_node_compare _compare;
+    mg_list_t* _head[MAX_SKIPLIST_LEVEL];
+} mg_skiplist_t;
+
+static mg_inline mg_void_t init_skiplist(mg_skiplist* skl,
+                                         mg_skiplist_node_compare compare) {
+    for (mg_int32_t i = 0; i < MAX_SKIPLIST_LEVEL; i++) {
+        MG_LIST_INIT(skl->_head[i]);
     }
     skl->_cur_level = 0;
     skl->_compare = compare;
 }
 
+#endif
