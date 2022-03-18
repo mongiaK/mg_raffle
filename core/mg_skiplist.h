@@ -9,8 +9,8 @@
 #ifndef __MG_SKIPLIST_INCLUDE_H__
 #define __MG_SKIPLIST_INCLUDE_H__
 
-#include "mg_config.h"
 #include "mg_core.h"
+#include "mg_list.h"
 
 #define MAX_SKIPLIST_LEVEL 64
 
@@ -31,7 +31,7 @@ typedef struct mg_skiplist {
     mg_list_t* _head[MAX_SKIPLIST_LEVEL];
 } mg_skiplist_t;
 
-static mg_inline mg_void_t init_skiplist(mg_skiplist* skl,
+static inline void init_skiplist(mg_skiplist* skl,
                                          mg_skiplist_node_compare compare) {
     for (mg_int32_t i = 0; i < MAX_SKIPLIST_LEVEL; i++) {
         MG_LIST_INIT(skl->_head[i]);

@@ -8,8 +8,8 @@
 #ifndef __MG_LOG_INCLUDE_H__
 #define __MG_LOG_INCLUDE_H__
 
-#include "mg_config.h"
 #include "mg_core.h"
+#include "mg_time.h"
 
 #define NONE            "\033[m"
 #define RED             "\033[0;32;31m"
@@ -34,11 +34,6 @@
 #define LOG_COLOR_D WHITE
 #define LOG_COLOR_END NONE
 
-#define MAX_LOG_FILENAME    4096
-#define LOG_CHECK(x)    \
-    if (glog_level < x)  \
-    return
-
 enum {
     LOG_DUMP = 0,
     LOG_FATAL = 1,
@@ -48,111 +43,27 @@ enum {
     LOG_DEBUG = 5,
 };
 
-static FILE* glogfp = stdout;
-static mg_char_t glog_filename[MAX_LOG_FILENAME] = {0};
-#ifdef MG_DEBUG
-static mg_int_t glog_level = LOG_DEBUG;
-#else
-static mg_int_t glog_level = LOG_WARN;
-#endif
-
 // return val
 // 1: filename length great than max length
 // 2: loglevel error
 // 3: file open error
-static mg_inline mg_int_t log_init(mg_char_t* filename, mg_int_t level) {
-    FILE* fp;
-    mg_int_t n, length;
+static inline mg_int_t log_init(mg_char_t* filename, mg_int_t level);
 
-    length = strlen(filename);
-    if (length > MAX_LOG_FILENAME) {
-        return 1;
-    }
+static inline void log_uninit();
 
-    if (level < LOG_DUMP || level > LOG_DEBUG) {
-        return 2;
-    }
-    
-    fp = fopen(filename, "ab+");
-    if (fp == nullptr) {
-        return 3;
-    }
+static inline void log_doit(FILE* fp, mg_char_t* fmt, va_list ap);
 
-    n = sprintf(glog_filename, "%s", filename);
-    glog_filename[n] = '\0';
+static inline void log_debug(mg_char_t* fmt, ...);
 
-    glogfp = fp;
-    glog_level = level;
+static inline void log_info(mg_char_t* fmt, ...);
 
-    return 0;
-}
+static inline void log_warning(mg_char_t* fmt, ...);
 
-static mg_inline mg_void_t log_uninit() {
-    if (glogfp != nullptr) {
-        fclose(glogfp);
-    }
-}
+static inline void log_error(mg_char_t* fmt, ...);
 
-static mg_inline mg_void_t log_doit(FILE* fp, mg_char_t* fmt, va_list ap) {
-    fprintf(fp, fmt, ap);
-}
+static inline void log_fatal(mg_char_t* fmt, ...);
 
-static mg_inline mg_void_t log_debug(mg_char_t* fmt, ...) {
-    LOG_CHECK(LOG_DEBUG);
-
-    va_list ap;
-    va_start(ap, fmt);
-    log_doit(glogfp, fmt, ap);
-    va_end(ap);
-}
-
-static mg_inline mg_void_t log_info(mg_char_t* fmt, ...) {
-    LOG_CHECK(LOG_INFO);
-
-    va_list ap;
-    va_start(ap, fmt);
-    log_doit(glogfp, fmt, ap);
-    va_end(ap);
-}
-
-static mg_inline mg_void_t log_warning(mg_char_t* fmt, ...) {
-    LOG_CHECK(LOG_WARN);
-
-    va_list ap;
-    va_start(ap, fmt);
-    log_doit(glogfp, fmt, ap);
-    va_end(ap);
-}
-
-static mg_inline mg_void_t log_error(mg_char_t* fmt, ...) {
-    LOG_CHECK(LOG_ERROR);
-
-    va_list ap;
-    va_start(ap, fmt);
-    log_doit(glogfp, fmt, ap);
-    va_end(ap);
-}
-
-static mg_inline mg_void_t log_fatal(mg_char_t* fmt, ...) {
-    LOG_CHECK(LOG_FATAL);
-
-    va_list ap;
-    va_start(ap, fmt);
-    log_doit(glogfp, fmt, ap);
-    va_end(ap);
-    exit(1);
-}
-
-static mg_inline mg_void_t log_dump(mg_char_t* fmt, ...) {
-    LOG_CHECK(LOG_DUMP);
-
-    va_list ap;
-    va_start(ap, fmt);
-    log_doit(glogfp, fmt, ap);
-    va_end(ap);
-    abort();
-    exit(1);
-}
+static inline void log_dump(mg_char_t* fmt, ...);
 
 #define mglog_debug(fmt, ...)     \
     log_debug("%s [debug] %s %s %s "##fmt##" \n", mg_logtime(), __FILE__, __LINE__, __func__, __VA_ARGS__)

@@ -9,8 +9,8 @@
 #ifndef __MG_POOL_INCLUDE_H__
 #define __MG_POOL_INCLUDE_H__
 
-#include "mg_config.h"
 #include "mg_core.h"
+#include "mg_list.h"
 
 #ifndef MG_PAGESIZE
 #define MG_PAGESIZE (4 * 1024)
@@ -34,13 +34,13 @@
 
 struct mg_large_block {
     mg_list_t _l;
-    mg_void_t* _head;
-    mg_void_t* _buf;
+    void* _head;
+    void* _buf;
 };
 
 struct mg_small_block {
     mg_list_t _l;
-    mg_void_t* _head;
+    void* _head;
     mg_char_t* _last;
     mg_char_t* _end;
     mg_int_t _failed;
@@ -68,7 +68,7 @@ mg_pool* mg_create_pool(mg_size_t size) {
     return p;
 }
 
-mg_void_t mg_destory_pool(mg_pool* pool) {
+void mg_destory_pool(mg_pool* pool) {
     mg_list_t *h, *n;
     mg_large_block* l;
     mg_small_block* s;
@@ -86,8 +86,8 @@ mg_void_t mg_destory_pool(mg_pool* pool) {
     mg_free(pool);
 }
 
-static mg_inline mg_void_t* mg_palloc_large(mg_pool* pool, mg_size_t size) {
-    mg_void_t* p;
+static inline void* mg_palloc_large(mg_pool* pool, mg_size_t size) {
+    void* p;
     mg_large_block* large;
     p = mg_malloc(size + sizeof(mg_large_block));
     if (p == nullptr) {
@@ -102,7 +102,7 @@ static mg_inline mg_void_t* mg_palloc_large(mg_pool* pool, mg_size_t size) {
     return large->_buf;
 }
 
-static mg_inline mg_void_t* mg_palloc_small(mg_pool* pool, mg_size_t size) {
+static inline void* mg_palloc_small(mg_pool* pool, mg_size_t size) {
     mg_list_t* p = pool->_current;
     mg_char_t* m;
 
@@ -142,7 +142,7 @@ static mg_inline mg_void_t* mg_palloc_small(mg_pool* pool, mg_size_t size) {
     return m;
 }
 
-mg_void_t* mg_palloc(mg_pool* pool, mg_size_t size) {
+void* mg_palloc(mg_pool* pool, mg_size_t size) {
     if (size <= pool->_max) {
         return mg_palloc_small(pool, size);
     }

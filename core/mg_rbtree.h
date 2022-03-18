@@ -8,7 +8,6 @@
 #ifndef __MG_RBTREE_INCLUDE__
 #define __MG_RBTREE_INCLUDE__
 
-#include "mg_config.h"
 #include "mg_core.h"
 
 #define RBREDNODE 0
@@ -36,27 +35,27 @@ typedef struct mg_rb_tree {
     mg_rb_node* _root;
 } mg_rb_tree_t;
 
-static mg_inline mg_bool_t rb_node_is_red(mg_rb_node* node) {
+static inline mg_bool_t rb_node_is_red(mg_rb_node* node) {
     return node->_type == RBREDNODE;
 }
 
-static mg_inline mg_bool_t rb_node_is_black(mg_rb_node* node) {
+static inline mg_bool_t rb_node_is_black(mg_rb_node* node) {
     return node->_type == RBBLACKNODE;
 }
 
-static mg_inline mg_void_t init_rb_node(mg_rb_node* rbnode) {
+static inline void init_rb_node(mg_rb_node* rbnode) {
     rbnode->_type = RBREDNODE;
     rbnode->_parent = rbnode->_lchild = rbnode->_rchild = nullptr;
 }
 
-static mg_inline mg_void_t init_rb_tree(mg_rb_tree* rbtree,
+static inline void init_rb_tree(mg_rb_tree* rbtree,
                                 mg_rb_node_compare compare) {
     rbtree->_count = 0;
     rbtree->_compare = compare;
     rbtree->_root = nullptr;
 }
 
-static mg_inline mg_rb_node* search_rb_node(mg_rb_node* node, mg_rb_tree* tree,
+static inline mg_rb_node* search_rb_node(mg_rb_node* node, mg_rb_tree* tree,
                                          bool insert_position = false) {
     mg_rb_node* p = tree->_root;
     while (p != nullptr) {
@@ -80,7 +79,7 @@ static mg_inline mg_rb_node* search_rb_node(mg_rb_node* node, mg_rb_tree* tree,
 //                  /x  \                /  \
 //            rlchild   rrchild      lchild  rlchild
 //
-static mg_inline mg_void_t left_rotate(mg_rb_node* node, mg_rb_tree* tree) {
+static inline void left_rotate(mg_rb_node* node, mg_rb_tree* tree) {
     mg_rb_node* p = node->_parent;
     mg_rb_node* rchild = node->_rchild;
 
@@ -108,7 +107,7 @@ static mg_inline mg_void_t left_rotate(mg_rb_node* node, mg_rb_tree* tree) {
 //         /   \x                               /  \
 //   llchild   lrchild                   lrchild  rchild
 //
-static mg_inline mg_void_t right_rotate(mg_rb_node* node, mg_rb_tree* tree) {
+static inline void right_rotate(mg_rb_node* node, mg_rb_tree* tree) {
     mg_rb_node* p = node->_parent;
     mg_rb_node* lchild = node->_lchild;
 
@@ -129,7 +128,7 @@ static mg_inline mg_void_t right_rotate(mg_rb_node* node, mg_rb_tree* tree) {
     node->_parent = lchild;
 }
 
-static mg_inline mg_void_t delete_leaf_node(mg_rb_node* leaf, mg_rb_tree* tree) {
+static inline void delete_leaf_node(mg_rb_node* leaf, mg_rb_tree* tree) {
     if (leaf == tree->_root) {
         tree->_root = nullptr;
         return;
@@ -144,7 +143,7 @@ static mg_inline mg_void_t delete_leaf_node(mg_rb_node* leaf, mg_rb_tree* tree) 
 }
 
 // n1 is higher than n2
-static mg_inline mg_void_t change_rb_node(mg_rb_node* n1, mg_rb_node* n2,
+static inline void change_rb_node(mg_rb_node* n1, mg_rb_node* n2,
                                   mg_rb_tree* tree, bool change_type = true) {
     if (n1 == n2) return;
     mg_rb_node* n1p = n1->_parent;
@@ -186,7 +185,7 @@ static mg_inline mg_void_t change_rb_node(mg_rb_node* n1, mg_rb_node* n2,
     }
 }
 
-static mg_inline mg_rb_node* find_right_replace_node(mg_rb_node* n) {
+static inline mg_rb_node* find_right_replace_node(mg_rb_node* n) {
     mg_rb_node* r = n->_rchild;
     while (r->_lchild != nullptr) {
         r = r->_lchild;
@@ -194,7 +193,7 @@ static mg_inline mg_rb_node* find_right_replace_node(mg_rb_node* n) {
     return r;
 }
 
-static mg_inline mg_void_t insert_rb_node(mg_rb_node* node, mg_rb_tree* tree) {
+static inline void insert_rb_node(mg_rb_node* node, mg_rb_tree* tree) {
     mg_rb_node* p = search_rb_node(node, tree, true);
     if (p == nullptr) {
         tree->_root = node;
@@ -275,7 +274,7 @@ static mg_inline mg_void_t insert_rb_node(mg_rb_node* node, mg_rb_tree* tree) {
     tree->_root->_type = RBBLACKNODE;
 }
 
-static mg_inline mg_void_t delete_rb_node(mg_rb_node* dnode, mg_rb_tree* tree) {
+static inline void delete_rb_node(mg_rb_node* dnode, mg_rb_tree* tree) {
     mg_rb_node* d = search_rb_node(dnode, tree);
     if (d == nullptr) return;
 
