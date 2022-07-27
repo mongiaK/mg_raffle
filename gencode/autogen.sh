@@ -110,7 +110,7 @@ DIRS := \$(shell find . -maxdepth 5 -type d)
 VPATH = \${DIRS}
 
 SRC=\$(foreach dir, \$(DIRS), \$(wildcard \$(dir)/*.cpp))
-OBJ=\$(addprefix \$(OBJ_DIR)/,\$(patsubst %.cpp,%.o,\$(SRC)))
+OBJ=\$(addprefix \$(OBJ_DIR)/,\$(patsubst %.cpp,%.o,\$(notdir \$(SRC))))
 
 all: prepare \$(target)
 

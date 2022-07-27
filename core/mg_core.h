@@ -12,6 +12,7 @@
 #include <bits/stdc++.h>
 #include <signal.h>
 #include <time.h>
+#include <fcntl.h>
 
 #ifdef __LINUX__
 #include <sys/time.h>
@@ -60,5 +61,30 @@ typedef volatile mg_atomic_uint_t mg_atomic_t;
 #define nullptr NULL
 #endif
 
+static int set_nonblock(int fd)
+{
+    int flag;
+    if ((flag = fcntl(fd, F_GETFL)) < 0 ) {
+        return -1;
+    }
+
+    if (fcntl(fd, F_SETFL, flag | O_NONBLOCK) < 0) {
+        return -1;
+    }
+    return 0;
+}
+
+static int set_block(int fd)
+{
+    int flag;
+    if ( (flag = fcntl(fd, F_GETFL)) < 0 ) {
+        return -1;
+    }
+
+    if (fcntl(fd, F_SETFL, flag & (~O_NONBLOCK)) < 0) {
+        return -1;
+    }
+    return 0;
+}
 
 #endif
