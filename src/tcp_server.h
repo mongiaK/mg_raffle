@@ -43,10 +43,13 @@ class STCPServer : public SServer {
     virtual int get_server_port() { return _server_port; }
 
     virtual bool start() {
-        if (!_listensp->start_listen()) {
-            return false;
+        if (!init()) {
+            slog_fatal("server init failed.");
         }
         if (!_eventsp->init()) {
+            return false;
+        }        
+        if (!_listensp->start_listen()) {
             return false;
         }
 

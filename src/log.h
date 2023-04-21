@@ -14,4 +14,9 @@
 #define slog_info(x) std::cout << x << std::endl;
 #define slog_debug(x) std::cout << x << std::endl;
 #define slog_warn(x) std::cout << x << std::endl;
+#define slog_fatal(x) \
+{   \
+    std::cout << x << std::endl; \
+    exit(1); \
+}
 

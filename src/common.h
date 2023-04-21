@@ -8,6 +8,7 @@
 #pragma once
 
 #include <fcntl.h>
+#include <bits/stdc++.h>
 
 static void setnonblock(int fd) {
     auto stat = fcntl(fd, F_GETFL, 0);

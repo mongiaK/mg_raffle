@@ -8,6 +8,9 @@
 
 #pragma once
 
+#include <bits/stdc++.h>
+#include <sys/epoll.h>
+
 #include "event.h"
 #include "log.h"
 #include "ss.h"

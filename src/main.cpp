@@ -17,10 +17,6 @@ int main(int argc, char* argv[]) {
     }
 
     STCPServer server("0.0.0.0", 9282);
-    if (!server.init()) {
-        std::cerr << "server init failed" << std::endl;
-        return 1;
-    }
 
     server.start();
 

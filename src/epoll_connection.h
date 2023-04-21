@@ -14,6 +14,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <sys/epoll.h>
 
 #include "common.h"
 #include "connection.h"
