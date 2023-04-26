@@ -1,42 +1,47 @@
-#include <algorithm>
 #include <arpa/inet.h>
 #include <asm-generic/errno-base.h>
 #include <asm-generic/errno.h>
-#include <atomic>
 #include <errno.h>
 #include <fcntl.h>
 #include <google/protobuf/io/zero_copy_stream.h>
-#include <iostream>
-#include <map>
-#include <memory>
 #include <netinet/in.h>
 #include <pthread.h>
-#include <queue>
 #include <sched.h>
-#include <shared_mutex>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <string>
 #include <sys/epoll.h>
 #include <sys/ioctl.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <unistd.h>
+
+#include <algorithm>
+#include <atomic>
+#include <iostream>
+#include <map>
+#include <memory>
+#include <queue>
+#include <shared_mutex>
+#include <string>
 #include <system_error>
 #include <type_traits>
-#include <unistd.h>
 #include <vector>
 
+#include "buffer_manager.h"
+#include "connection.h"
+#include "connection_manager.h"
+#include "hello_rpc_task.h"
+#include "parser.h"
+#include "request.h"
 #include "rpc.pb.h"
+#include "util.h"
 
 #define MAX_EVENTS 1024
 #define EVENT_TIMEOUT 10
-
-#define mlog_info(x) std::cout << x << std::endl;
-#define mlog_error(x) std::cerr << x << std::endl;
 
 static struct sockaddr_in server;
 static int sock = -1;
@@ -49,6 +54,8 @@ struct hodor {
 
 void recv_run(int fd);
 
+MBufferPoolSP gbufpool(new MBufferPool);
+
 void setnonblock(int fd) {
     int flags = fcntl(fd, F_GETFL, 0);
     flags |= O_NONBLOCK;
@@ -58,16 +65,16 @@ void setnonblock(int fd) {
 void dowork(int sig, siginfo_t *siginfo, void *data) {
     struct hodor *dor = NULL;
     switch (sig) {
-    case SIGUSR1:
-        dor = (struct hodor *)siginfo->si_value.sival_ptr;
-        std::cout << "recv sig: " << sig << ", fd: " << dor->client
-                  << ", msg: " << dor->msg.c_str() << std::endl;
-        free(dor);
-        dor = NULL;
-        break;
-    case SIGUSR2:
-        recv_run(siginfo->si_value.sival_int);
-        break;
+        case SIGUSR1:
+            dor = (struct hodor *)siginfo->si_value.sival_ptr;
+            mlog_info("recv sig: " << sig << ", fd: " << dor->client
+                                   << ", msg: " << dor->msg.c_str());
+            free(dor);
+            dor = NULL;
+            break;
+        case SIGUSR2:
+            recv_run(siginfo->si_value.sival_int);
+            break;
     }
 }
 
@@ -79,7 +86,7 @@ void register_signal(int signo) {
     act.sa_flags = SA_SIGINFO;
 
     if (sigaction(signo, &act, NULL) < 0) {
-        std::cerr << "install signal failed" << std::endl;
+        mlog_error("install signal failed");
     }
 }
 
@@ -90,247 +97,53 @@ void signal_action(int fd, int signo) {
     sigqueue(getpid(), signo, myval);
 }
 
-#define MAX_CONN_BUF 1024
-#define MAGIC "peng"
+MConnManagerSP gConnManager(new MConnManager(epfd));
 
-enum {
-    M_MAGIC = 1,
-    M_HEADER = 2,
-    M_RPC_HEADER = 3,
-    M_RPC_CONTENT = 4,
-};
-
-struct MLengthHeader {
-    int rpc_header_length;
-    int rpc_body_length;
-};
-
-class ReadBuf {
-public:
-    ReadBuf(): _capacity(1024), _cur_index(0), _remain_size(1024) {}
-    ~ReadBuf() {}
-
-    void Next(char** buf, int* size) {
-        int usable_size = std::min(*size, _remain_size);
-        
-        *buf = _buf + _cur_index;
-        *size = usable_size;
-        
-        _remain_size -= usable_size;
-        _cur_index += usable_size;
-    }
-
-    int32_t Capacity() const {
-        return _capacity;
-    }
-
-    int32_t Usable() const {
-        return _remain_size;
-    }
-
-    void Reset() {
-        _cur_index = 0;
-        _remain_size = 1024;
-    }
-
-private:
-    char _buf[1024];
-    int32_t _capacity;
-
-    int32_t _cur_index;
-    int32_t _remain_size;
-};
-
-class WriteBuf {
-    public:
-        WriteBuf(): _capacity(1024){
-
-        }
-        ~WriteBuf() {}
-
-    private:
-        char _buf[1024];
-        int _capacity;
-};
-
-struct MConn {
-    int fd;
-    char buf[MAX_CONN_BUF];
-    int recv_offset;
-    int recv_remain;
-    std::string client_addr;
-    long client_port;
-    int parse_type;
-    int parse_remain;
-    int parse_offset;
-
-    int magic;
-    struct MLengthHeader length_header;
-    char *rpc_header;
-    char *rpc_body;
-};
-
-class mConnManager {
-  public:
-    void CreateConn(int fd, std::string &client_addr, long client_port) {
-        if (_conns.find(fd) != _conns.end()) {
-            std::cout << "client fd exit ,cant accept again" << std::endl;
-            return;
-        }
-        std::shared_ptr<MConn> conn(new MConn);
-        conn->fd = fd;
-        conn->client_addr = client_addr;
-        conn->client_port = client_port;
-        conn->recv_offset = 0;
-        conn->recv_remain = MAX_CONN_BUF;
-        conn->parse_type = M_MAGIC;
-        conn->parse_remain = 4;
-        conn->parse_offset = 0;
-        conn->rpc_header = nullptr;
-        conn->rpc_body = nullptr;
-        _conns[fd] = conn;
-    }
-
-    std::shared_ptr<MConn> GetConn(int fd) {
-        auto it = _conns.find(fd);
-        if (it == _conns.end()) {
-            return nullptr;
-        }
-        return it->second;
-    }
-
-    void CloseConn(int fd) {
-        
-        struct epoll_event ev;
-        ev.data.fd = fd;
-        epoll_ctl(epfd, EPOLL_CTL_DEL, fd, &ev);
-        
-        auto it = _conns.find(fd);
-        if (it != _conns.end()) {
-           _conns.erase(fd);
-        }
-        
-        close(fd);
-    }
-  private:
-    std::map<int, std::shared_ptr<MConn>> _conns;
-};
-
-std::shared_ptr<mConnManager> gConnManager(new mConnManager);
-
-class MRequest {
-  public:
-    MRequest(char *header, char *body, int hlength, int blength,
-             std::shared_ptr<MConn> conn)
-        : header_length(hlength), body_length(blength), rpc_header(header),
-          rpc_body(body), _conn(conn) {}
-    ~MRequest() {}
-
-    std::shared_ptr<MConn> GetConn() { return _conn; }
-
-  public:
-    int header_length;
-    int body_length;
-    char *rpc_header;
-    char *rpc_body;
-    std::shared_ptr<MConn> _conn;
-};
-
-std::queue<std::shared_ptr<MRequest>>
-parse_connection(std::shared_ptr<MConn> conn, int length) {
+std::queue<MRequestSP> parse_connection(MConnectionSP conn, MBufferSP buf,
+                                        int length) {
     int remain = 0;
     std::queue<std::shared_ptr<MRequest>> reqs;
     while (length > 0) {
-        switch (conn->parse_type) {
-        case M_MAGIC:
-            remain = std::min(conn->parse_remain, length);
-            memcpy(reinterpret_cast<char *>(&conn->magic) + 4 -
-                       conn->parse_remain,
-                   conn->buf + conn->parse_offset, remain);
-            conn->parse_remain -= remain;
-            conn->parse_offset += remain;
-            length -= remain;
+        switch (conn->ParseType()) {
+            case M_MAGIC:
+                remain = std::min(conn->MagicRemain(), length);
+                memcpy(reinterpret_cast<char *>(conn->Magic()) + 4 -
+                           conn->MagicRemain(),
+                       buf->Buf(), remain);
+                buf->Consume(remain);
+                conn->MagicRemain(remain);
+                length -= remain;
 
-            if (conn->parse_remain > 0)
+                if (conn->MagicRemain() > 0) break;
+                conn->ChangeParseType(M_HEADER);
                 break;
-            conn->parse_type = M_HEADER;
-            conn->parse_remain = sizeof(MLengthHeader);
-            break;
-        case M_HEADER:
-            remain = std::min(conn->parse_remain, length);
-            memcpy(reinterpret_cast<char *>(&conn->length_header) +
-                       sizeof(MLengthHeader) - conn->parse_remain,
-                   conn->buf + conn->parse_offset, remain);
-            conn->parse_remain -= remain;
-            conn->parse_offset += remain;
-            length -= remain;
+            default:
+                if (!conn->HasParser()) {
+                    conn->ResetParser(std::make_shared<MParser>(conn));
+                }
 
-            if (conn->parse_remain > 0)
+                MRequestSP req = conn->Parser()->SplitMessage(buf, length);
+                if (req != nullptr) {
+                    reqs.push(req);
+                }
                 break;
-            conn->parse_type = M_RPC_HEADER;
-            conn->parse_remain = conn->length_header.rpc_header_length;
-            conn->rpc_header = new char[conn->length_header.rpc_header_length];
-            conn->rpc_body = new char[conn->length_header.rpc_body_length];
-
-            break;
-        case M_RPC_HEADER:
-            remain = std::min(conn->parse_remain, length);
-            memcpy(conn->rpc_header + conn->length_header.rpc_header_length -
-                       conn->parse_remain,
-                   conn->buf + conn->parse_offset, remain);
-            conn->parse_remain -= remain;
-            conn->parse_offset += remain;
-            length -= remain;
-
-            if (conn->parse_remain > 0)
-                break;
-            conn->parse_type = M_RPC_CONTENT;
-            conn->parse_remain = conn->length_header.rpc_body_length;
-            break;
-        case M_RPC_CONTENT:
-            remain = std::min(conn->parse_remain, length);
-            memcpy(conn->rpc_body + conn->length_header.rpc_body_length -
-                       conn->parse_remain,
-                   conn->buf + conn->parse_offset, remain);
-            conn->parse_remain -= remain;
-            conn->parse_offset += remain;
-            length -= remain;
-
-            if (conn->parse_remain > 0)
-                break;
-            reqs.push(std::make_shared<MRequest>(
-                conn->rpc_header, conn->rpc_body,
-                conn->length_header.rpc_header_length,
-                conn->length_header.rpc_body_length, conn));
-            conn->parse_type = M_MAGIC;
-            conn->parse_remain = 4;
-            break;
-        default:
-            break;
         }
     }
     return reqs;
 }
 
-class HelloTask {
-  public:
-    HelloTask(std::shared_ptr<M::HelloReq> req,
-              std::shared_ptr<M::HelloRes> res)
-        : _req(req), _res(res) {}
-    ~HelloTask() {}
-
-    void Run() { _res->set_name("world"); }
-
-  private:
-    std::shared_ptr<M::HelloReq> _req;
-    std::shared_ptr<M::HelloRes> _res;
-};
-
-void do_response(std::shared_ptr<MRequest> req, M::RpcHeader &rpc_header,
+void do_response(MRequestSP req, M::RpcHeader &rpc_header,
                  std::shared_ptr<M::HelloRes> hellores) {
     int remain = 4 + sizeof(MLengthHeader) + rpc_header.ByteSizeLong() +
                  hellores->ByteSizeLong();
-    char buf[1024];
+    MBufferSP bufsp;
+    bufsp = gbufpool->Allocate();
+    if (bufsp == nullptr) {
+        mlog_error("cannot allocate buf from pool, close connection");
+        return;
+    }
+    char* buf = bufsp->Buf();
+
     MLengthHeader mlh;
     mlh.rpc_header_length = int(rpc_header.ByteSizeLong());
     mlh.rpc_body_length = int(hellores->ByteSizeLong());
@@ -338,28 +151,28 @@ void do_response(std::shared_ptr<MRequest> req, M::RpcHeader &rpc_header,
     memcpy(buf + 4, &mlh, sizeof(MLengthHeader));
     rpc_header.SerializeToArray(buf + 4 + sizeof(MLengthHeader),
                                 rpc_header.ByteSizeLong());
-    hellores->SerializeToArray(buf + 4 + sizeof(MLengthHeader) +
-                                   rpc_header.ByteSizeLong(),
-                               hellores->ByteSizeLong());
+    hellores->SerializeToArray(
+        buf + 4 + sizeof(MLengthHeader) + rpc_header.ByteSizeLong(),
+        hellores->ByteSizeLong());
     while (remain > 0) {
-        int ret = send(req->GetConn()->fd, buf, remain, 0);
+        int ret = send(req->GetConn()->Socket(), buf, remain, 0);
         if (ret == 0) {
             mlog_info("conn close");
-            gConnManager->CloseConn(req->GetConn()->fd);
+            gConnManager->CloseConn(req->GetConn()->Socket());
             return;
         } else if (ret < 0) {
             switch (errno) {
-            case EAGAIN | EWOULDBLOCK:
-                break;
-            case EINTR:
-                break;
-            default:
-                gConnManager->CloseConn(req->GetConn()->fd);
-                return;
+                case EAGAIN | EWOULDBLOCK:
+                    break;
+                case EINTR:
+                    break;
+                default:
+                    gConnManager->CloseConn(req->GetConn()->Socket());
+                    return;
             }
         } else {
             remain -= ret;
-            *buf += ret;
+            buf += ret;
         }
     }
 }
@@ -367,13 +180,15 @@ void do_request(std::queue<std::shared_ptr<MRequest>> reqs) {
     while (!reqs.empty()) {
         auto it = reqs.front();
         M::RpcHeader rpc_header;
-        rpc_header.ParseFromArray(it->rpc_header, it->header_length);
+        rpc_header.ParseFromBoundedZeroCopyStream(
+            it->HeaderBuf().get(), it->HeaderBuf()->TotalBytes());
         reqs.pop();
 
         if (rpc_header.func() == "hello") {
             std::shared_ptr<M::HelloReq> req = std::make_shared<M::HelloReq>();
             std::shared_ptr<M::HelloRes> res = std::make_shared<M::HelloRes>();
-            req->ParseFromArray(it->rpc_body, it->body_length);
+            req->ParseFromBoundedZeroCopyStream(it->BodyBuf().get(),
+                                                it->BodyBuf()->TotalBytes());
             mlog_info("req: " << req->SerializeAsString());
             HelloTask task(req, res);
             task.Run();
@@ -385,42 +200,58 @@ void do_request(std::queue<std::shared_ptr<MRequest>> reqs) {
 }
 
 void recv_run(int fd) {
-    std::shared_ptr<MConn> conn = gConnManager->GetConn(fd);
+    MConnectionSP conn = gConnManager->GetConn(fd);
     if (nullptr == conn) {
-        mlog_error("conntion read data, but connection handler is not in "
-                   "connection set");
-        close(fd);
+        mlog_error(
+            "conntion read data, but connection handler is not in "
+            "connection set");
+        gConnManager->CloseConn(fd);
         return;
     }
-    do {
-        int len = recv(fd, conn->buf + conn->recv_offset, conn->recv_remain, 0);
+    static int32_t retry = 3;
+    while (true) {
+        MBufferSP buf;
+        for (int i = 0; i < retry; i++) {
+            buf = gbufpool->Allocate();
+            if (buf != nullptr) break;
+        }
+        if (buf == nullptr) {
+            mlog_error("cannot allocate buf from pool, close connection");
+            gConnManager->CloseConn(fd);
+            return;
+        }
+
+        int32_t len = recv(fd, buf->Buf(), buf->Remain(), 0);
         if (len < 0) {
             switch (errno) {
-            case EAGAIN | EWOULDBLOCK:
-                return;
-            case EINTR:
-                break;
-            default:
-                gConnManager->CloseConn(fd); 
-                return;
+                case EAGAIN | EWOULDBLOCK:
+                    gbufpool->GiveBack(buf);
+                    return;
+                case EINTR:
+                    gbufpool->GiveBack(buf);
+                    break;
+                default:
+                    gbufpool->GiveBack(buf);
+                    gConnManager->CloseConn(fd);
+                    return;
             }
         } else if (len > 0) {
-            conn->recv_remain = conn->recv_remain - len;
-            conn->recv_offset = conn->recv_offset + len;
-            auto reqs = parse_connection(conn, len);
+            auto reqs = parse_connection(conn, buf, len);
             if (!reqs.empty()) {
                 do_request(reqs);
             }
         } else {
-            gConnManager->CloseConn(fd); 
+            gbufpool->GiveBack(buf);
+            gConnManager->CloseConn(fd);
+            return;
         }
-    } while (true);
+    }
 }
 
 void accept_run() {
     epfd = epoll_create(MAX_EVENTS);
     if (epfd < 0) {
-        std::cout << "create epoll failed" << std::endl;
+        mlog_info("create epoll failed");
         return;
     }
 
@@ -429,8 +260,7 @@ void accept_run() {
     event.events = EPOLLIN | EPOLLOUT;
 
     if (epoll_ctl(epfd, EPOLL_CTL_ADD, sock, &event) == -1) {
-        std::cout << "epoll add failed." << std::endl;
-        close(epfd);
+        mlog_info("epoll add failed.") close(epfd);
         return;
     }
 
@@ -440,7 +270,7 @@ void accept_run() {
     std::string client_ip;
     long client_port;
 
-    std::cout << "start to wait connect." << std::endl;
+    mlog_info("start to wait connect.");
     while (true) {
         int fdset = epoll_wait(epfd, events, MAX_EVENTS, EVENT_TIMEOUT);
         for (int i = 0; i < fdset; ++i) {
@@ -448,7 +278,7 @@ void accept_run() {
                 int client =
                     accept(sock, (struct sockaddr *)&client_addr, &cliaddr_len);
                 if (client < 0) {
-                    std::cerr << "accept failed. errno: " << errno << std::endl;
+                    mlog_error("accept failed. errno: " << errno);
                     continue;
                 }
                 ev.events = EPOLLIN | EPOLLET;
@@ -460,17 +290,18 @@ void accept_run() {
                                      << " connected");
 
                 if (epoll_ctl(epfd, EPOLL_CTL_ADD, client, &ev) < 0) {
-                    std::cerr << "epoll add client fd failed." << std::endl;
-                    close(epfd);
+                    mlog_info("epoll add client fd failed.");
+                    close(client);
                     return;
                 }
                 gConnManager->CreateConn(client, client_ip, client_port);
+
             } else {
-                if(events[i].events & EPOLLIN) {
+                if (events[i].events & EPOLLIN) {
                     recv_run(events[i].data.fd);
                 }
-                if(events[i].events & EPOLLOUT){
-                    //TODO 
+                if (events[i].events & EPOLLOUT) {
+                    // TODO
                 }
                 // signal_action(events[i].data.fd, SIGUSR2);
             }
@@ -481,16 +312,14 @@ void accept_run() {
 static void daemon() {
     pid_t pid;
     pid = fork();
-    if (pid < 0)
-        exit(-1);
-    if (pid > 0)
-        exit(0);
+    if (pid < 0) exit(-1);
+    if (pid > 0) exit(0);
 }
 
 static void listen_port(const int port, int &sock) {
     sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
-        std::cout << "create socket failed." << std::endl;
+        mlog_info("create socket failed.");
         return;
     }
 
@@ -500,13 +329,13 @@ static void listen_port(const int port, int &sock) {
     server.sin_addr.s_addr = INADDR_ANY;
 
     if (bind(sock, (struct sockaddr *)&server, sizeof(server)) < 0) {
-        std::cout << "bind failed." << std::endl;
+        mlog_info("bind failed.");
         close(sock);
         return;
     }
 
     if (listen(sock, MAX_EVENTS) < 0) {
-        std::cout << "listen failed." << std::endl;
+        mlog_info("listen failed.");
         close(sock);
         return;
     }
@@ -517,25 +346,25 @@ static void set_multi_env() {
 
     limit.rlim_cur = limit.rlim_max = 1024;
     if (setrlimit(RLIMIT_STACK, &limit) != 0) {
-        std::cout << "set system stack size failed." << std::endl;
+        mlog_info("set system stack size failed.");
         exit(0);
     }
 
     limit.rlim_cur = limit.rlim_max = 1000000;
     if (setrlimit(RLIMIT_NOFILE, &limit) != 0) {
-        std::cout << "set system open file failed." << std::endl;
+        mlog_info("set system open file failed.");
         exit(0);
     }
 
     getrlimit(RLIMIT_STACK, &limit);
     if (limit.rlim_cur != 1024) {
-        std::cout << "set system stack size failed." << std::endl;
+        mlog_info("set system stack size failed.");
         exit(0);
     }
 
     getrlimit(RLIMIT_NOFILE, &limit);
     if (limit.rlim_cur != 1000000) {
-        std::cout << "set system open file failed." << std::endl;
+        mlog_info("set system open file failed.");
         exit(0);
     }
 }
@@ -545,8 +374,7 @@ static void watch_dog() {
     std::map<int, int> pool;
 
     std::queue<int> myqueue;
-    for (int i = 0; i < cpunum; ++i)
-        myqueue.push(i);
+    for (int i = 0; i < cpunum; ++i) myqueue.push(i);
 
     cpu_set_t mask;
     while (true) {
@@ -557,7 +385,7 @@ static void watch_dog() {
             int pid = fork();
             if (pid == 0) {
                 if (sched_setaffinity(0, sizeof(mask), &mask) < 0)
-                    std::cerr << "sched_setaffinity failed." << std::endl;
+                    mlog_error("sched_setaffinity failed.");
                 return;
             } else if (pid < 0) {
                 exit(1);

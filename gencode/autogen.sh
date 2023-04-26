@@ -101,9 +101,13 @@ target:=${object}
 
 CXX:=clang++
 
-INCS=-I ../../utils
+INCS=-I/usr/local/include
 CFLAGS=-g -Wall -O0 -std=c++11
-LIBS=
+
+LIB_INCS=-L//usr/local/lib
+STATIC_LIBS=
+DYNAMIC_LIBS=
+
 OBJ_DIR=obj
 
 DIRS := \$(shell find . -maxdepth 5 -type d)
@@ -118,7 +122,7 @@ prepare:
 	@mkdir -p \${OBJ_DIR}
 
 \$(target): \${OBJ}
-	\${CXX} \${CFLAGS} \${INCS} $^ -o \$@ \${LIBS}
+	\${CXX} \${CFLAGS} \${INCS} $^ -o \$@ \${LIB_INCS} -Wl,-Bstatic \${STATIC_LIBS} -Wl,-Bdynamic \${DYNAMIC_LIBS}
 
 \$(OBJ_DIR)/%.o: %.cpp
 	\${CXX} \${CFLAGS} \${INCS} -c $< -o \$@
