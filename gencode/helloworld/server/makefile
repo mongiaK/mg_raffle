@@ -1,4 +1,4 @@
-target:=tserver
+target:=m
 
 CXX:=g++
 

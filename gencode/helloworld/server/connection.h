@@ -57,6 +57,12 @@ class MConnection {
         return _parser;
     }
 
+    void SendQueue(MBufferGuardSP bufguard) {
+        _send_buf->Append(bufguard);
+    }
+
+    void SendBuf();
+
    private:
     int32_t _fd;
     std::string _client_ip;

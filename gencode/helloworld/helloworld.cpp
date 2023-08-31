@@ -13,12 +13,12 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
-#include <set>
 #include <atomic>
 #include <chrono>
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <set>
 #include <thread>
 #include <vector>
 
@@ -30,7 +30,6 @@ void thread1(int n) {
     while (g_var1) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
-
     std::cout << "thread1 exit" << std::endl;
 }
 
@@ -43,23 +42,23 @@ void thread2() {
 }
 
 class String {
-   private:
-    char* a;
+  private:
+    char *a;
     int size;
-    int& type;
+    int &type;
 
-   public:
+  public:
     String(int typ = 1) : a(NULL), size(0), type(typ) {
         std::cout << "constructor" << std::endl;
     }
 
-    String(const String& str, int typ = 1) : type(typ) {
+    String(const String &str, int typ = 1) : type(typ) {
         std::cout << "param constructor" << std::endl;
     }
 
     ~String() { std::cout << "destructor" << std::endl; }
 
-    void operator=(const String& str) {
+    void operator=(const String &str) {
         std::cout << "= constructor" << std::endl;
     }
 };
@@ -91,7 +90,7 @@ void create_server() {
     addr.sin_port = htons(9282);
     addr.sin_addr.s_addr = inet_addr("0.0.0.0");
 
-    bind(fd, (struct sockaddr*)(&addr), sizeof(struct sockaddr));
+    bind(fd, (struct sockaddr *)(&addr), sizeof(struct sockaddr));
 
     listen(fd, 1024);
 }
@@ -100,33 +99,33 @@ void start_accept() {}
 
 void virtual_fuc_test() {
     class Test {
-       public:
+      public:
         virtual void func(){};
     };
 
-    Test* t = new Test;
+    Test *t = new Test;
 }
 
 void abstract_class() {
     class Abstract {
-       public:
+      public:
         virtual void func() = 0;
     };
 
     class son : public Abstract {
-       private:
+      private:
         son(){};
 
-       public:
+      public:
         virtual void func() final {}
     };
 
     class son_son : public son {
-        son_son* _son_son;
+        son_son *_son_son;
     };
 }
 
-int mid_find(int* vec, int length, int num) {
+int mid_find(int *vec, int length, int num) {
     if (length <= 0) {
         return 1;
     }
@@ -165,14 +164,15 @@ void vec_test() {
     char a[] = "abc";
     char b[] = "abc";
 
-    char* c = "abc";
-    char* d = "abc";
+    char *c = "abc";
+    char *d = "abc";
 
     std::cout << bool(a == b) << ", " << bool(c == d) << std::endl;
 };
 
-int arr_test(int* vec, int length) {
-    if (length <= 0) return 0;
+int arr_test(int *vec, int length) {
+    if (length <= 0)
+        return 0;
     int sum = 0;
     int max = vec[0];
     for (int i = 0; i < length; i++) {
@@ -203,7 +203,7 @@ void func() {
     }
 }
 
-int minOperations(vector<int>& nums) {
+int minOperations(vector<int> &nums) {
     if (nums.size() <= 1) {
         return 0;
     }
@@ -220,7 +220,7 @@ int minOperations(vector<int>& nums) {
     return steps;
 }
 
-void rotate(vector<int>& nums, int k) {
+void rotate(vector<int> &nums, int k) {
     int size = nums.size();
     int right = k % size;
     if (right == 0) {
@@ -238,9 +238,9 @@ void rotate(vector<int>& nums, int k) {
         ++times;
     }
 }
-int main(int argc, char* argv[]) {
-//    vector<int> param = {-1, -100, 1, 99};
-//    rotate(param, 2);
+int main(int argc, char *argv[]) {
+    //    vector<int> param = {-1, -100, 1, 99};
+    //    rotate(param, 2);
     //    func();
     //    int a[5] = {1, 2, 4, 4, 5};
     //    int ret = mid_find(a, 5, 4);

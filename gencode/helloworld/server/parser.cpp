@@ -16,8 +16,6 @@
 #include "connection.h"
 #include "request.h"
 
-extern MBufferPoolSP gbufpool;
-
 MParser::MParser(MConnectionSP conn) : _conn(conn) {
     _header_remain = sizeof(struct MLengthHeader);
     _req = std::make_shared<MRequest>(conn);
@@ -45,7 +43,7 @@ MRequestSP MParser::SplitMessage(MBufferSP buf, int& length) {
             case M_RPC_HEADER:
                 remain = std::min(_rpc_remain, length);
                 _req->HeaderBuf()->Append(
-                    std::make_shared<MBufferGuard>(gbufpool, buf, remain));
+                    std::make_shared<MBufferGuard>(buf, remain));
                 buf->Consume(remain);
                 _rpc_remain -= remain;
                 length -= remain;
@@ -58,7 +56,7 @@ MRequestSP MParser::SplitMessage(MBufferSP buf, int& length) {
             case M_RPC_CONTENT:
                 remain = std::min(_rpc_remain, length);
                 _req->BodyBuf()->Append(
-                    std::make_shared<MBufferGuard>(gbufpool, buf, remain));
+                    std::make_shared<MBufferGuard>(buf, remain));
                 buf->Consume(remain);
                 _rpc_remain -= remain;
                 length -= remain;

@@ -9,11 +9,11 @@
 
 #include "buffer_manager.h"
 
-MBufferGuard::MBufferGuard(MBufferPoolSP pool, MBufferSP buf, int32_t size)
-    : _pool(pool), _buf(buf), _buf_free(false), _size(size), _index(_buf->Buf()) {}
+MBufferGuard::MBufferGuard(MBufferSP buf, int32_t size)
+    : _buf(buf), _buf_free(false), _size(size), _index(_buf->Buf()) {}
 MBufferGuard::~MBufferGuard() {
     if (false == _buf_free) {
-        _pool->GiveBack(_buf);
+        MBufferPool::Instance()->GiveBack(_buf);
         _buf_free = true;
     }
 }

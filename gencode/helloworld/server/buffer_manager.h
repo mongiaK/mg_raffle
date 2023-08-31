@@ -74,6 +74,11 @@ class MBufferPool {
 
     ~MBufferPool() {}
 
+    static std::shared_ptr<MBufferPool> Instance() {
+        static std::shared_ptr<MBufferPool> bufpoolsp = std::make_shared<MBufferPool>();
+        return bufpoolsp;
+    }
+
     MBufferSP Allocate() {
         if (_pool1024.empty()) {
             return nullptr;
@@ -94,14 +99,13 @@ typedef std::shared_ptr<MBufferPool> MBufferPoolSP;
 
 class MBufferGuard {
    public:
-    MBufferGuard(MBufferPoolSP pool, MBufferSP buf, int32_t size);
+    MBufferGuard(MBufferSP buf, int32_t size);
     ~MBufferGuard();
     char* Buf();
 
     int32_t Size();
 
    private:
-    MBufferPoolSP _pool;
     MBufferSP _buf;
     bool _buf_free;
 
@@ -124,6 +128,7 @@ class MReadBuf : public google::protobuf::io::ZeroCopyInputStream {
         if(_cur_it != _buf_list.end()) {
             *data = _cur_it->get()->Buf() + _cur_pos;
             *size = _cur_it->get()->Size() - _cur_pos;
+            _last_it = _cur_it;
             _cur_it++;
             _read_bytes += *size;
             return true;
@@ -138,6 +143,12 @@ class MReadBuf : public google::protobuf::io::ZeroCopyInputStream {
             _cur_pos = _cur_it->get()->Size() - count;
         }
         _read_bytes -= count;
+    }
+
+    void Erase() {
+        if (_cur_it != _last_it) {
+            _buf_list.erase(_last_it);
+        }
     }
 
     int32_t TotalBytes() const {
@@ -164,6 +175,7 @@ class MReadBuf : public google::protobuf::io::ZeroCopyInputStream {
    private:
     std::list<MBufferGuardSP> _buf_list;
     std::list<MBufferGuardSP>::iterator _cur_it;
+    std::list<MBufferGuardSP>::iterator _last_it;
 
     int32_t _cur_pos;
     int32_t _read_bytes;
