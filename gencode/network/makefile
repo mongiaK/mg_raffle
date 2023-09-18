@@ -5,7 +5,7 @@ CXX:=clang++
 INCS=-I/usr/local/include
 CFLAGS=-g -Wall -O0 -std=c++11
 
-LIB_INCS=-L//usr/local/lib
+LIB_INCS=-L/usr/local/lib
 STATIC_LIBS=
 DYNAMIC_LIBS=
 
