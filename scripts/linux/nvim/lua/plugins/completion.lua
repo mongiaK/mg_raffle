@@ -11,7 +11,6 @@ return {
              "hrsh7th/cmp-buffer",
              "hrsh7th/cmp-path",
              "hrsh7th/cmp-cmdline",
-             
              -- 代码补全引擎
              "saadparwaiz1/cmp_luasnip",
              "L3MON4D3/LuaSnip",

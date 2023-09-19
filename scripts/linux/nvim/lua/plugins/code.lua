@@ -32,8 +32,33 @@ return {
         }
     },
     {
+        -- 语法高亮
         "nvim-treesitter/nvim-treesitter",
         config = cfg.treesitter_config,
         lazy= true,
+    },
+    {
+        --自动匹配括号之类的
+        "echasnovski/mini.pairs",
+        event = "VeryLazy",
+        config = function ()
+            require('mini.pairs').setup()
+        end
+    },
+    {
+        -- 包含符号处理
+        "echasnovski/mini.surround",
+        event = "VeryLazy",
+        config = function ()
+            require('mini.surround').setup()
+        end
+    },
+    {
+        -- 添加注释
+        "echasnovski/mini.comment",
+        event = "VeryLazy",
+        config = function ()
+            require("mini.comment").setup()
+        end
     }
 }
