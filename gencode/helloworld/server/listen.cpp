@@ -1,5 +1,6 @@
 #include "listen.h"
 #include "util.h"
+#include <netinet/in.h>
 
 MListen::MListen(int port, std::string &address)
     : _port(port), _address(address) {
@@ -21,6 +22,10 @@ bool MListen::Listen() {
     bzero(&server, sizeof(struct sockaddr_in));
     server.sin_family = AF_INET;
     server.sin_port = htons(_port);
+    if (_address.empty()) {
+        server.sin_addr.s_addr = INADDR_ANY;
+    } else {
+    }
     server.sin_addr.s_addr = _address.c_str();
 
     if (bind(sock, (struct sockaddr *)&server, sizeof(server)) < 0) {
