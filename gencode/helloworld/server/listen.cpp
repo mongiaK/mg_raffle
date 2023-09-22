@@ -25,8 +25,8 @@ bool MListen::Listen() {
     if (_address.empty()) {
         server.sin_addr.s_addr = INADDR_ANY;
     } else {
+        server.sin_addr.s_addr = inet_addr(_address.c_str());
     }
-    server.sin_addr.s_addr = _address.c_str();
 
     if (bind(sock, (struct sockaddr *)&server, sizeof(server)) < 0) {
         mlog_info("bind failed.");
