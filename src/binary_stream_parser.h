@@ -44,7 +44,7 @@ class SBinarySTreamParser : public SParser {
     void reset_recieve_env() {
         _module_has_read_size = 0;
         _type = RPC_HEADER;
-        _requestsp.reset(new SBinaryRequest());
+        //_requestsp.reset(new SBinaryRequest());
     }
 
     int parser_msg(SBufferGuardSP bufsp, int &consume, int &remain_length) {
@@ -102,7 +102,11 @@ class SBinarySTreamParser : public SParser {
         return 1;
     }
 
-    SRequestSP get_request() { return _requestsp; }
+    SRequestSP get_request() {
+        SRequestSP reqsp(new SBinaryRequest());
+        reqsp.swap(_requestsp);
+        return reqsp;
+    }
 
   private:
     RpcMessageHeader _recieve_header;

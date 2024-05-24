@@ -8,7 +8,10 @@
 
 #pragma once
 
+#include <google/protobuf/io/zero_copy_stream.h>
+
 #include <assert.h>
+#include <pthread.h>
 #include <string.h>
 
 #include <cstdlib>
@@ -38,10 +41,10 @@ static int malloc_size(int size) {
 }
 
 class SBuffer {
-   public:
+  public:
     SBuffer(int allocate_size) : _alloc_size(allocate_size) {
         _real_size = malloc_size(_alloc_size);
-        _headp = (char*)malloc(1000 * sizeof(char));
+        _headp = (char *)malloc(1000 * sizeof(char));
         if (_headp == NULL) {
             slog_warn("new buffer fail" << strerror(errno));
             _real_size = 0;
@@ -68,24 +71,24 @@ class SBuffer {
         _remain_size = _real_size;
     }
 
-    char* get_buf() const { return _remainp; }
+    char *get_buf() const { return _remainp; }
     int get_remain_size() const { return _remain_size; }
 
     int get_size() const { return _alloc_size; }
     int get_real_size() const { return _real_size; }
     int get_usage_size() const { return _remainp - _headp; }
 
-   private:
+  private:
     int _alloc_size;
     int _real_size;
-    char* _headp;
-    char* _remainp;
+    char *_headp;
+    char *_remainp;
     int _remain_size;
 };
 
 class SBufferPool {
     class BufferList {
-       public:
+      public:
         BufferList(int size) : _buffer_size(size) {
             for (int i = 0; i < 1000; i++) {
                 SBufferSP buf(new SBuffer(size));
@@ -116,7 +119,7 @@ class SBufferPool {
     };
     typedef std::shared_ptr<BufferList> BufferListSP;
 
-   public:
+  public:
     SBufferPool() {
         _bufsets[128] = BufferListSP(new BufferList(128));
         _bufsets[256] = BufferListSP(new BufferList(256));
@@ -129,22 +132,22 @@ class SBufferPool {
 
     SBufferSP get_buffer(int size) {
         int real_size = malloc_size(size);
-        BufferListSP& li = _bufsets[real_size];
+        BufferListSP &li = _bufsets[real_size];
         return li->get_buf();
     }
 
     void give_back(SBufferSP buf) {
         int real_size = buf->get_real_size();
-        BufferListSP& li = _bufsets[real_size];
+        BufferListSP &li = _bufsets[real_size];
         li->give_back(buf);
     }
 
-   private:
-    std::map<int, BufferListSP> _bufsets;  // 按块大小分类
+  private:
+    std::map<int, BufferListSP> _bufsets; // 按块大小分类
 };
 
 class SBufferGuard {
-   public:
+  public:
     SBufferGuard(SBufferPoolSP poolsp, int size)
         : _buf_size(size), _buf_poolsp(poolsp) {
         _bufsp = _buf_poolsp->get_buffer(_buf_size);
@@ -153,7 +156,7 @@ class SBufferGuard {
 
     SBufferSP operator->() { return _bufsp; }
 
-   private:
+  private:
     SBufferSP _bufsp;
     int _buf_size;
     SBufferPoolSP _buf_poolsp;
@@ -168,21 +171,73 @@ struct BufHandle {
     SBufferGuardSP _bufsp;
 };
 
-class ReadBuffer {
-   public:
-    void Append(const BufHandle& buf_handle) {
+class ReadBuffer : public google::protobuf::io::ZeroCopyInputStream {
+  public:
+    ReadBuffer() : _cur_it(_buf_list.begin()), _cur_pos(0), _read_bytes(0) {}
+    void Append(const BufHandle &buf_handle) {
         _buf_list.push_back(buf_handle);
+        _cur_it = _buf_list.begin();
+        _total_bytes += buf_handle._size;
     }
 
-   private:
+    bool Next(const void **data, int *size) {
+        if (_cur_it != _buf_list.end()) {
+            *data = _cur_it->_bufsp->get_buf() + _offset + _cur_pos;
+            *size = _cur_it->_size - _cur_pos;
+            _last_it = _cur_it;
+            _cur_it++;
+            _read_bytes += *size;
+            return true;
+        }
+
+        return false;
+    }
+
+    void BackUp(int count) {
+        if (count > 0) {
+            --_cur_it;
+            _cur_pos = _cur_it->_size - count;
+        }
+        _read_bytes -= count;
+    }
+
+    void Erase() {
+        if (_cur_it != _last_it) {
+            _buf_list.erase(_last_it);
+        }
+    }
+
+    int32_t TotalBytes() const { return _total_bytes; }
+
+    bool Skip(int count) {
+        const void *data;
+        int size;
+        while (count > 0 && Next(&data, &size)) {
+            if (size > count) {
+                BackUp(size - count);
+                size = count;
+            }
+            count -= size;
+        }
+        return count == 0;
+    }
+
+    int64_t ByteCount() const { return _read_bytes; }
+
+  private:
     std::deque<BufHandle> _buf_list;
+    std::deque<BufHandle>::iterator _cur_it;
+    std::deque<BufHandle>::iterator _last_it;
+
+    int32_t _cur_pos;
+    int32_t _read_bytes;
+    int32_t _total_bytes;
 };
 typedef std::shared_ptr<ReadBuffer> ReadBufferSP;
 
 struct RecieveItem {
     RecieveItem(int meta_size, int data_size, ReadBufferSP read_bufsp)
-        : _meta_size(meta_size),
-          _data_size(data_size),
+        : _meta_size(meta_size), _data_size(data_size),
           _read_bufsp(read_bufsp) {}
     int _meta_size;
     int _data_size;
