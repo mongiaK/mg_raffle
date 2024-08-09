@@ -1,9 +1,9 @@
 syntax = "proto3";
 
 message RpcMeta {
-    enum Type{
-        Request = 1;
-        Response = 2;
+    enum Type {
+        Request = 0;
+        Response = 1;
     }
     Type type = 1;
     uint64 sequence_id = 2;

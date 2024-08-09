@@ -128,7 +128,7 @@ class SBufferPool {
         _bufsets[2048] = BufferListSP(new BufferList(2048));
         _bufsets[4096] = BufferListSP(new BufferList(4096));
     }
-    ~SBufferPool(){};
+    ~SBufferPool() {};
 
     SBufferSP get_buffer(int size) {
         int real_size = malloc_size(size);
@@ -164,7 +164,7 @@ class SBufferGuard {
 typedef std::shared_ptr<SBufferGuard> SBufferGuardSP;
 
 struct BufHandle {
-    BufHandle(int offset, int size, SBufferGuardSP bufsp)
+    BufHandle(SBufferGuardSP bufsp, int offset, int size)
         : _offset(offset), _size(size), _bufsp(bufsp) {}
     int _offset;
     int _size;

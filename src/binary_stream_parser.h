@@ -18,17 +18,6 @@
 #include "buffer.h"
 #include "parser.h"
 
-struct RpcMessageHeader {
-    union {
-        char _str[4];
-        int32_t _magic_str;
-    };
-
-    int32_t _meta_size;
-    int32_t _data_size;
-    int32_t _message_size; // message_size = meta_size + data_size
-};
-
 enum ReadType {
     RPC_HEADER = 1,
     RPC_MESSAGE = 2,
@@ -38,13 +27,16 @@ static int g_header_size = sizeof(RpcMessageHeader);
 
 class SBinarySTreamParser : public SParser {
   public:
-    SBinarySTreamParser() { reset_recieve_env(); };
-    virtual ~SBinarySTreamParser(){};
+    SBinarySTreamParser() {
+        reset_recieve_env();
+        _requestsp.reset(new SBinaryRequest());
+    };
+    virtual ~SBinarySTreamParser() {};
 
     void reset_recieve_env() {
         _module_has_read_size = 0;
         _type = RPC_HEADER;
-        //_requestsp.reset(new SBinaryRequest());
+        // _requestsp.reset(new SBinaryRequest());
     }
 
     int parser_msg(SBufferGuardSP bufsp, int &consume, int &remain_length) {

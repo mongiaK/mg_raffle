@@ -23,7 +23,7 @@ class SStream {
   public:
     SStream(SConnectionSP conn, SServerSP serversp)
         : _connsp(conn), _serversp(serversp), _magic_string_recieve_size(0) {}
-    ~SStream(){};
+    ~SStream() {};
 
     void register_request_callback(RequestCallback callback) {
         _request_callback = callback;
@@ -102,6 +102,9 @@ class SStream {
             request->set_remote_ip(_connsp->get_dst_ip());
             request->set_remote_port(_connsp->get_dst_port());
             requests.push_back(request);
+
+            // reset magic string recieve status
+            _magic_string_recieve_size = 0;
         }
 
         return true;
